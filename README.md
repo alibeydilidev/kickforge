@@ -104,6 +104,65 @@ Everything flows through the **Event Bus**. You register handlers with `@app.on(
 | `livestream.status.updated` | Stream goes live/offline |
 | `moderation.banned` | User banned |
 
+## First Real Test
+
+End-to-end in 5 minutes: wire up KickForge to the real Kick API and see a live event arrive.
+
+**1. Install and configure**
+
+```bash
+pip install kickforge
+cp .env.example .env
+```
+
+Edit `.env` with your Kick Developer credentials (get them at [kick.com/settings/developer](https://kick.com/settings/developer)):
+
+```
+KICK_CLIENT_ID=your_client_id_here
+KICK_CLIENT_SECRET=your_client_secret_here
+```
+
+**2. Start the bot**
+
+```bash
+python examples/minimal_bot.py
+```
+
+You should see the KickForge banner and "Waiting for Kick events...".
+
+**3. Expose your local server**
+
+In a second terminal:
+
+```bash
+ngrok http 8420
+```
+
+Copy the HTTPS forwarding URL (e.g. `https://a1b2c3.ngrok-free.app`).
+
+**4. Register the webhook**
+
+Go to your [Kick Developer App settings](https://kick.com/settings/developer) and set the webhook URL to:
+
+```
+https://a1b2c3.ngrok-free.app/webhook
+```
+
+Subscribe to the events you want (at minimum: `chat.message.sent`).
+
+**5. Send a test message**
+
+Open your Kick channel in a browser and type `!ping` in chat. Back in your terminal you should see:
+
+```
+Received webhook: type=chat.message.sent subscription=...
+Executed command: !ping by your_username
+```
+
+The bot replies "pong!" in chat. You're live.
+
+---
+
 ## Setup Webhook (Development)
 
 KickForge needs a public URL for Kick to send webhooks to. During development:

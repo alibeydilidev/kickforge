@@ -10,19 +10,17 @@ A complete working bot in ~40 lines. Shows:
 
 Setup:
     1. pip install kickforge
-    2. Get credentials at https://kick.com/settings/developer
-    3. Replace YOUR_* values below
-    4. python examples/minimal_bot.py
-    5. In another terminal: ngrok http 8420
-    6. Set your ngrok URL as webhook URL in Kick Dev settings
+    2. Copy .env.example to .env and fill in your Kick credentials
+    3. python examples/minimal_bot.py
+    4. In another terminal: ngrok http 8420
+    5. Set your ngrok URL as webhook URL in Kick Dev settings
 """
 
 from kickforge_core import KickApp
 
-app = KickApp(
-    client_id="YOUR_CLIENT_ID",
-    client_secret="YOUR_CLIENT_SECRET",
-)
+# Credentials are loaded automatically from .env
+# You can also pass them directly: KickApp(client_id="...", client_secret="...")
+app = KickApp()
 
 
 @app.on("chat.message.sent")

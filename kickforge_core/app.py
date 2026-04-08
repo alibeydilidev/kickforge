@@ -24,10 +24,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import signal
 from typing import Callable, Optional
 
 import uvicorn
+from dotenv import load_dotenv
 
 from kickforge_core.auth import KickAuth
 from kickforge_core.events import EventBus, EventHandler
@@ -37,6 +39,9 @@ from kickforge_core.exceptions import KickForgeError
 
 logger = logging.getLogger("kickforge.app")
 
+# Auto-load .env if present
+load_dotenv()
+
 
 class KickApp:
     """
@@ -44,23 +49,36 @@ class KickApp:
 
     Combines authentication, webhook handling, event dispatch,
     and API access into a single clean interface.
+
+    Credentials can be passed directly or read from environment
+    variables (KICK_CLIENT_ID, KICK_CLIENT_SECRET).  Place a
+    ``.env`` file in your project root and it will be loaded
+    automatically.
     """
 
     def __init__(
         self,
-        client_id: str,
-        client_secret: str,
+        client_id: Optional[str] = None,
+        client_secret: Optional[str] = None,
         webhook_path: str = "/webhook",
         verify_signatures: bool = True,
         log_level: str = "INFO",
     ) -> None:
+        resolved_id = client_id or os.getenv("KICK_CLIENT_ID", "")
+        resolved_secret = client_secret or os.getenv("KICK_CLIENT_SECRET", "")
+
+        if not resolved_id or not resolved_secret:
+            raise KickForgeError(
+                "Kick credentials required. Pass client_id/client_secret "
+                "or set KICK_CLIENT_ID and KICK_CLIENT_SECRET in your .env file."
+            )
         logging.basicConfig(
             level=getattr(logging, log_level.upper(), logging.INFO),
             format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
             datefmt="%H:%M:%S",
         )
 
-        self.auth = KickAuth(client_id=client_id, client_secret=client_secret)
+        self.auth = KickAuth(client_id=resolved_id, client_secret=resolved_secret)
         self.bus = EventBus()
         self.webhook = WebhookServer(
             bus=self.bus,
