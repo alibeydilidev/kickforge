@@ -119,7 +119,7 @@ class KickAPI:
             payload["reply_to"] = {"message_id": reply_to}
 
         token_type = "app" if poster_type == "bot" else "user"
-        result = await self._request("POST", "/api/v1/chat", token_type=token_type, json=payload)
+        result = await self._request("POST", "/public/v1/chat", token_type=token_type, json=payload)
         logger.debug("Sent message to broadcaster %d: %s", broadcaster_id, content[:50])
         return result
 
@@ -129,12 +129,12 @@ class KickAPI:
 
     async def get_channel(self, slug: str) -> dict[str, Any]:
         """Get channel information by slug (username)."""
-        return await self._request("GET", "/api/v1/channels", params={"slug": slug})
+        return await self._request("GET", "/public/v1/channels", params={"slug": slug})
 
     async def get_livestream(self, broadcaster_id: int) -> dict[str, Any]:
         """Get current livestream info for a broadcaster."""
         return await self._request(
-            "GET", "/api/v1/livestreams", params={"broadcaster_user_id": broadcaster_id}
+            "GET", "/public/v1/livestreams", params={"broadcaster_user_id": broadcaster_id}
         )
 
     # -----------------------------------------------------------------------
@@ -166,7 +166,7 @@ class KickAPI:
             payload["duration"] = duration
 
         result = await self._request(
-            "POST", "/api/v1/moderation/ban", token_type="user", json=payload
+            "POST", "/public/v1/moderation/bans", token_type="user", json=payload
         )
         logger.info("Banned user %d from channel %d (duration=%s)", user_id, broadcaster_id, duration)
         return result
@@ -175,7 +175,7 @@ class KickAPI:
         """Unban a user from a channel."""
         return await self._request(
             "DELETE",
-            "/api/v1/moderation/ban",
+            "/public/v1/moderation/bans",
             token_type="user",
             params={"broadcaster_user_id": broadcaster_id, "user_id": user_id},
         )
@@ -183,7 +183,7 @@ class KickAPI:
     async def delete_message(self, message_id: str) -> dict[str, Any]:
         """Delete a chat message by ID."""
         return await self._request(
-            "DELETE", f"/api/v1/chat/{message_id}", token_type="user"
+            "DELETE", f"/public/v1/chat/{message_id}", token_type="user"
         )
 
     # -----------------------------------------------------------------------
@@ -203,13 +203,13 @@ class KickAPI:
             version: Event version (default 1).
         """
         payload = [{"name": e, "version": version} for e in events]
-        result = await self._request("POST", "/api/v1/events/subscriptions", json=payload)
+        result = await self._request("POST", "/public/v1/events/subscriptions", json=payload)
         logger.info("Subscribed to events: %s", events)
         return result
 
     async def get_subscriptions(self) -> dict[str, Any]:
         """List all active event subscriptions."""
-        return await self._request("GET", "/api/v1/events/subscriptions")
+        return await self._request("GET", "/public/v1/events/subscriptions")
 
     # -----------------------------------------------------------------------
     # Kicks leaderboard
@@ -219,7 +219,7 @@ class KickAPI:
         """Get the kicks (gifting) leaderboard for a channel."""
         return await self._request(
             "GET",
-            "/api/v1/kicks/leaderboard",
+            "/public/v1/kicks/leaderboard",
             params={"broadcaster_user_id": broadcaster_id},
         )
 

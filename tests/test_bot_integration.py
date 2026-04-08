@@ -38,7 +38,7 @@ def _mock_api(bot: KickBot) -> list[tuple[str, str]]:
 
     async def handler(request: httpx.Request) -> httpx.Response:
         import json
-        if "/api/v1/chat" in str(request.url) and request.method == "POST":
+        if "/public/v1/chat" in str(request.url) and request.method == "POST":
             data = json.loads(request.content)
             sent.append((str(data.get("broadcaster_user_id")), data.get("content", "")))
         return httpx.Response(200, json={"data": {}})

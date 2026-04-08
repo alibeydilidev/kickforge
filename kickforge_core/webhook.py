@@ -24,7 +24,7 @@ from kickforge_core.exceptions import WebhookVerificationError
 
 logger = logging.getLogger("kickforge.webhook")
 
-KICK_PUBLIC_KEY_URL = "https://api.kick.com/public-key"
+KICK_PUBLIC_KEY_URL = "https://api.kick.com/public/v1/public-key"
 
 
 class WebhookServer:

@@ -55,7 +55,7 @@ class TestKickAPI:
     @pytest.mark.asyncio
     async def test_send_message(self):
         api = _mock_api({
-            "/api/v1/chat": httpx.Response(200, json={"data": {"message_id": "new-msg"}}),
+            "/public/v1/chat": httpx.Response(200, json={"data": {"message_id": "new-msg"}}),
         })
         result = await api.send_message(broadcaster_id=99, content="Hello!")
         assert result["data"]["message_id"] == "new-msg"
@@ -84,7 +84,7 @@ class TestKickAPI:
     @pytest.mark.asyncio
     async def test_get_channel(self):
         api = _mock_api({
-            "/api/v1/channels": httpx.Response(200, json={
+            "/public/v1/channels": httpx.Response(200, json={
                 "data": [{"broadcaster_user_id": 99, "slug": "test"}]
             }),
         })
@@ -95,7 +95,7 @@ class TestKickAPI:
     @pytest.mark.asyncio
     async def test_get_livestream(self):
         api = _mock_api({
-            "/api/v1/livestreams": httpx.Response(200, json={
+            "/public/v1/livestreams": httpx.Response(200, json={
                 "data": {"is_live": True, "title": "Live!"}
             }),
         })
@@ -106,7 +106,7 @@ class TestKickAPI:
     @pytest.mark.asyncio
     async def test_ban_user(self):
         api = _mock_api({
-            "/api/v1/moderation/ban": httpx.Response(200, json={"data": {"success": True}}),
+            "/public/v1/moderation/bans": httpx.Response(200, json={"data": {"success": True}}),
         })
         # Need a user token for ban
         import time
@@ -121,7 +121,7 @@ class TestKickAPI:
     @pytest.mark.asyncio
     async def test_subscribe_events(self):
         api = _mock_api({
-            "/api/v1/events/subscriptions": httpx.Response(200, json={"data": {"count": 2}}),
+            "/public/v1/events/subscriptions": httpx.Response(200, json={"data": {"count": 2}}),
         })
         result = await api.subscribe_events(["chat.message.sent", "kicks.gifted"])
         assert result["data"]["count"] == 2
@@ -130,7 +130,7 @@ class TestKickAPI:
     @pytest.mark.asyncio
     async def test_get_subscriptions(self):
         api = _mock_api({
-            "/api/v1/events/subscriptions": httpx.Response(200, json={"data": []}),
+            "/public/v1/events/subscriptions": httpx.Response(200, json={"data": []}),
         })
         result = await api.get_subscriptions()
         assert result["data"] == []
@@ -139,7 +139,7 @@ class TestKickAPI:
     @pytest.mark.asyncio
     async def test_get_kicks_leaderboard(self):
         api = _mock_api({
-            "/api/v1/kicks/leaderboard": httpx.Response(200, json={
+            "/public/v1/kicks/leaderboard": httpx.Response(200, json={
                 "data": [{"username": "top1", "amount": 1000}]
             }),
         })
@@ -150,7 +150,7 @@ class TestKickAPI:
     @pytest.mark.asyncio
     async def test_api_error_4xx(self):
         api = _mock_api({
-            "/api/v1/chat": httpx.Response(400, json={"message": "Bad request"}),
+            "/public/v1/chat": httpx.Response(400, json={"message": "Bad request"}),
         })
         with pytest.raises(APIError) as exc_info:
             await api.send_message(broadcaster_id=99, content="fail")
@@ -177,7 +177,7 @@ class TestKickAPI:
     @pytest.mark.asyncio
     async def test_delete_message(self):
         api = _mock_api({
-            "/api/v1/chat/msg-1": httpx.Response(200, json={"data": {"deleted": True}}),
+            "/public/v1/chat/msg-1": httpx.Response(200, json={"data": {"deleted": True}}),
         })
         import time
         from kickforge_core.auth import TokenPair
