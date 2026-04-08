@@ -120,19 +120,12 @@ Edit `.env` with your Kick Developer credentials (get them at [kick.com/settings
 ```
 KICK_CLIENT_ID=your_client_id_here
 KICK_CLIENT_SECRET=your_client_secret_here
+KICK_BROADCASTER_ID=your_broadcaster_user_id_here
 ```
 
-**2. Start the bot**
+> Your `KICK_BROADCASTER_ID` is the numeric user ID of the channel you want to receive events for. You can find it in your Kick Developer dashboard or by calling `GET /public/v1/channels?slug=your_channel_name`.
 
-```bash
-python examples/minimal_bot.py
-```
-
-You should see the KickForge banner and "Waiting for Kick events...".
-
-**3. Expose your local server**
-
-In a second terminal:
+**2. Start ngrok first**
 
 ```bash
 ngrok http 8420
@@ -140,19 +133,40 @@ ngrok http 8420
 
 Copy the HTTPS forwarding URL (e.g. `https://a1b2c3.ngrok-free.app`).
 
-**4. Register the webhook**
+**3. Set the webhook URL in Kick**
 
-Go to your [Kick Developer App settings](https://kick.com/settings/developer) and set the webhook URL to:
+Go to your [Kick Developer App settings](https://kick.com/settings/developer). Paste your ngrok URL **with `/webhook` appended** as the Webhook URL:
 
 ```
 https://a1b2c3.ngrok-free.app/webhook
 ```
 
-Subscribe to the events you want (at minimum: `chat.message.sent`).
+> This is configured in the Kick dashboard, not in your `.env` file. Kick needs to know where to send events, and this is how you tell it.
 
-**5. Send a test message**
+**4. Subscribe to events**
 
-Open your Kick channel in a browser and type `!ping` in chat. Back in your terminal you should see:
+```bash
+python examples/subscribe_events.py
+```
+
+This tells the Kick API which events you want to receive. You should see output like:
+
+```
+Subscribing to 5 events for broadcaster 123456...
+Done. Your webhook server will now receive these events.
+```
+
+**5. Start the bot**
+
+```bash
+python examples/minimal_bot.py
+```
+
+You should see the KickForge banner and "Waiting for Kick events...".
+
+**6. Send a test message**
+
+Open your Kick channel in a browser and type `!ping` in chat. Back in your bot terminal you should see:
 
 ```
 Received webhook: type=chat.message.sent subscription=...
