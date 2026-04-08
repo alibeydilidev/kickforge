@@ -217,6 +217,20 @@ class KickAPI:
         """List all active event subscriptions."""
         return await self._request("GET", "/public/v1/events/subscriptions")
 
+    async def delete_subscriptions(self, ids: list[str]) -> dict[str, Any]:
+        """
+        Delete event subscriptions by ID.
+
+        Args:
+            ids: List of subscription IDs to remove.
+        """
+        params = [("id", sid) for sid in ids]
+        result = await self._request(
+            "DELETE", "/public/v1/events/subscriptions", params=params
+        )
+        logger.info("Deleted %d subscription(s)", len(ids))
+        return result
+
     # -----------------------------------------------------------------------
     # Kicks leaderboard
     # -----------------------------------------------------------------------

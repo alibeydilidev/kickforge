@@ -6,6 +6,10 @@ One-shot script that subscribes to Kick webhook events and
 lists the active subscriptions.  Run this once after setting
 up your Kick Developer App credentials.
 
+Usage:
+    python examples/subscribe_events.py            # subscribe to events
+    python examples/subscribe_events.py --reset    # clear all, then re-subscribe
+
 Setup:
     1. Copy .env.example to .env and fill in your credentials
     2. python examples/subscribe_events.py
@@ -13,6 +17,7 @@ Setup:
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import os
 import sys
@@ -32,6 +37,14 @@ EVENTS = [
 
 
 async def main() -> None:
+    parser = argparse.ArgumentParser(description="Subscribe to Kick webhook events")
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Delete all existing subscriptions before re-subscribing",
+    )
+    args = parser.parse_args()
+
     client_id = os.getenv("KICK_CLIENT_ID", "")
     client_secret = os.getenv("KICK_CLIENT_SECRET", "")
     broadcaster_id_str = os.getenv("KICK_BROADCASTER_ID", "")
@@ -58,6 +71,23 @@ async def main() -> None:
     api = KickAPI(auth=auth)
 
     try:
+        # Reset: delete all existing subscriptions first
+        if args.reset:
+            print("Fetching existing subscriptions...")
+            subs = await api.get_subscriptions()
+            entries = subs.get("data", [])
+            if isinstance(entries, list) and entries:
+                ids = [e["id"] for e in entries if "id" in e]
+                if ids:
+                    print(f"Deleting {len(ids)} existing subscription(s)...")
+                    await api.delete_subscriptions(ids)
+                    print("Deleted.")
+                else:
+                    print("No subscription IDs found to delete.")
+            else:
+                print("No existing subscriptions.")
+            print()
+
         # Subscribe
         print(f"Subscribing to {len(EVENTS)} events for broadcaster {broadcaster_id}...")
         result = await api.subscribe_events(EVENTS, broadcaster_user_id=broadcaster_id)
@@ -71,8 +101,8 @@ async def main() -> None:
         if isinstance(entries, list):
             for entry in entries:
                 name = entry.get("name", entry.get("event", "?"))
-                status = entry.get("status", "")
-                print(f"  - {name}  {status}")
+                sub_id = entry.get("id", "")
+                print(f"  - {name}  (id={sub_id})")
         else:
             print(f"  {subs}")
 
