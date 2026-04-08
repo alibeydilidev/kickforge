@@ -7,21 +7,24 @@ name = "kickforge"
 version = "0.1.0"
 description = "The open-source toolkit for interactive Kick.com streams — bots, game integrations, overlays & clip automation."
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 requires-python = ">=3.11"
 authors = [
     {name = "Ali Beydili", email = "contact@kickforge.dev"},
 ]
-keywords = ["kick", "streaming", "bot", "interactive", "overlay", "clips", "gaming"]
+keywords = ["kick", "streaming", "bot", "interactive", "overlay", "clips", "gaming", "rcon", "obs"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Framework :: FastAPI",
     "Topic :: Multimedia :: Video",
     "Topic :: Communications :: Chat",
+    "Topic :: Games/Entertainment",
+    "Typing :: Typed",
 ]
 
 dependencies = [
@@ -43,6 +46,8 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "ruff>=0.6.0",
     "mypy>=1.11.0",
+    "build>=1.0.0",
+    "twine>=5.0.0",
 ]
 
 [project.urls]
@@ -50,6 +55,7 @@ Homepage = "https://github.com/alibeydilidev/kickforge"
 Documentation = "https://kickforge.dev/docs"
 Repository = "https://github.com/alibeydilidev/kickforge.git"
 Issues = "https://github.com/alibeydilidev/kickforge/issues"
+Changelog = "https://github.com/alibeydilidev/kickforge/releases"
 
 [project.scripts]
 kickforge = "kickforge_core.cli:main"
@@ -57,6 +63,10 @@ kickforge-clip = "kickforge_clip.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["kickforge_core*", "kickforge_bot*", "kickforge_gsi*", "kickforge_clip*", "kickforge_overlay*"]
+
+[tool.setuptools.package-data]
+kickforge_overlay = ["widgets/*.html"]
+kickforge_gsi = ["config/*.yaml"]
 
 [tool.ruff]
 target-version = "py311"

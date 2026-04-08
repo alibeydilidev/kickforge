@@ -77,7 +77,7 @@ async def on_gift(event):
 app.run()
 ```
 
-See [`examples/cs2_interactive.py`](examples/cs2_interactive.py) for a full interactive CS2 setup with tier-based actions.
+See [`examples/cs2_interactive.py`](https://github.com/alibeydilidev/kickforge/blob/main/examples/cs2_interactive.py) for a full interactive CS2 setup with tier-based actions.
 
 ## Architecture
 
@@ -213,7 +213,7 @@ KickForge is open source (MIT). Contributions welcome!
 
 - 🐛 Found a bug? [Open an issue](https://github.com/alibeydilidev/kickforge/issues)
 - 💡 Got an idea? [Start a discussion](https://github.com/alibeydilidev/kickforge/discussions)
-- 🔧 Want to add a game adapter? See the [adapter guide](docs/adapters.md)
+- 🔧 Want to add a game adapter? See the [adapter guide](https://github.com/alibeydilidev/kickforge/blob/main/docs/adapters.md)
 
 ## Roadmap
 

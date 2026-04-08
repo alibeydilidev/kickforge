@@ -1,0 +1,6 @@
+include LICENSE
+include README.md
+include .env.example
+
+recursive-include kickforge_overlay/widgets *.html
+recursive-include kickforge_gsi/config *.yaml
