@@ -123,7 +123,7 @@ class TestKickAPI:
         api = _mock_api({
             "/public/v1/events/subscriptions": httpx.Response(200, json={"data": {"count": 2}}),
         })
-        result = await api.subscribe_events(["chat.message.sent", "kicks.gifted"])
+        result = await api.subscribe_events(["chat.message.sent", "kicks.gifted"], broadcaster_user_id=99)
         assert result["data"]["count"] == 2
         await api.close()
 

@@ -34,9 +34,21 @@ EVENTS = [
 async def main() -> None:
     client_id = os.getenv("KICK_CLIENT_ID", "")
     client_secret = os.getenv("KICK_CLIENT_SECRET", "")
+    broadcaster_id_str = os.getenv("KICK_BROADCASTER_ID", "")
 
     if not client_id or not client_secret:
         print("Error: KICK_CLIENT_ID and KICK_CLIENT_SECRET must be set in .env")
+        sys.exit(1)
+
+    if not broadcaster_id_str:
+        print("Error: KICK_BROADCASTER_ID must be set in .env")
+        print("  Find it via: GET https://api.kick.com/public/v1/channels?slug=YOUR_CHANNEL")
+        sys.exit(1)
+
+    try:
+        broadcaster_id = int(broadcaster_id_str)
+    except ValueError:
+        print(f"Error: KICK_BROADCASTER_ID must be an integer, got '{broadcaster_id_str}'")
         sys.exit(1)
 
     from kickforge_core.auth import KickAuth
@@ -47,8 +59,8 @@ async def main() -> None:
 
     try:
         # Subscribe
-        print(f"Subscribing to {len(EVENTS)} events...")
-        result = await api.subscribe_events(EVENTS)
+        print(f"Subscribing to {len(EVENTS)} events for broadcaster {broadcaster_id}...")
+        result = await api.subscribe_events(EVENTS, broadcaster_user_id=broadcaster_id)
         print("Subscription response:", result)
         print()
 

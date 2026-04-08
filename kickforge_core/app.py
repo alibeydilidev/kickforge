@@ -143,12 +143,23 @@ class KickApp:
         else:
             logger.warning("Could not resolve broadcaster_id for '%s'", channel_slug)
 
-    async def subscribe(self, events: Optional[list[str]] = None) -> None:
+    async def subscribe(
+        self,
+        events: Optional[list[str]] = None,
+        broadcaster_user_id: Optional[int] = None,
+    ) -> None:
         """
         Subscribe to webhook events.
 
         Default events: chat messages, follows, subs, gifts, livestream status.
+        Uses the broadcaster_id from connect() if not specified.
         """
+        bid = broadcaster_user_id or self._broadcaster_id
+        if not bid:
+            raise KickForgeError(
+                "broadcaster_user_id required. Call app.connect(channel) first "
+                "or pass broadcaster_user_id explicitly."
+            )
         default_events = [
             "chat.message.sent",
             "channel.followed",
@@ -157,7 +168,7 @@ class KickApp:
             "kicks.gifted",
             "livestream.status.updated",
         ]
-        await self.api.subscribe_events(events or default_events)
+        await self.api.subscribe_events(events or default_events, broadcaster_user_id=bid)
 
     # -----------------------------------------------------------------------
     # Run

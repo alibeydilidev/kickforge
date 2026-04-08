@@ -193,6 +193,7 @@ class KickAPI:
     async def subscribe_events(
         self,
         events: list[str],
+        broadcaster_user_id: int,
         version: int = 1,
     ) -> dict[str, Any]:
         """
@@ -200,11 +201,16 @@ class KickAPI:
 
         Args:
             events: List of event type strings.
+            broadcaster_user_id: The broadcaster to receive events for.
             version: Event version (default 1).
         """
-        payload = [{"name": e, "version": version} for e in events]
+        payload: dict[str, Any] = {
+            "events": [{"name": e, "version": version} for e in events],
+            "method": "webhook",
+            "broadcaster_user_id": broadcaster_user_id,
+        }
         result = await self._request("POST", "/public/v1/events/subscriptions", json=payload)
-        logger.info("Subscribed to events: %s", events)
+        logger.info("Subscribed to events: %s (broadcaster=%d)", events, broadcaster_user_id)
         return result
 
     async def get_subscriptions(self) -> dict[str, Any]:

@@ -92,13 +92,14 @@ class TestKickApp:
         async def handler(request: httpx.Request) -> httpx.Response:
             import json
             data = json.loads(request.content)
-            subscribed_events.extend([e["name"] for e in data])
+            subscribed_events.extend([e["name"] for e in data["events"]])
             return httpx.Response(200, json={"data": {}})
 
         app.api._http = httpx.AsyncClient(
             base_url="https://api.kick.com",
             transport=httpx.MockTransport(handler),
         )
+        app._broadcaster_id = 99
         await app.subscribe()
         assert "chat.message.sent" in subscribed_events
         assert "kicks.gifted" in subscribed_events
