@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kickforge"
+version = "0.1.0"
+description = "The open-source toolkit for interactive Kick.com streams — bots, game integrations, overlays & clip automation."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+    {name = "Ali Beydili", email = "contact@kickforge.dev"},
+]
+keywords = ["kick", "streaming", "bot", "interactive", "overlay", "clips", "gaming"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Communications :: Chat",
+]
+
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "httpx>=0.27.0",
+    "pydantic>=2.9.0",
+    "pyyaml>=6.0",
+    "websockets>=13.0",
+    "cryptography>=43.0",
+]
+
+[project.optional-dependencies]
+minecraft = ["mcrcon>=0.7.0"]
+clip = ["openai-whisper>=20231117"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.6.0",
+    "mypy>=1.11.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/alibeydilidev/kickforge"
+Documentation = "https://kickforge.dev/docs"
+Repository = "https://github.com/alibeydilidev/kickforge.git"
+Issues = "https://github.com/alibeydilidev/kickforge/issues"
+
+[project.scripts]
+kickforge = "kickforge_core.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["kickforge_core*", "kickforge_bot*", "kickforge_gsi*", "kickforge_clip*", "kickforge_overlay*"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
