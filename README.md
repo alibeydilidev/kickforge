@@ -4,6 +4,7 @@
 
 Build bots, connect games, automate clips, and create real-time overlays — all with Python.
 
+[![PyPI](https://img.shields.io/pypi/v/kickforge)](https://pypi.org/project/kickforge/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
@@ -26,15 +27,15 @@ KickForge is a modular Python toolkit that lets you build interactive experience
 ## Quick Start
 
 ```bash
-# Install
 pip install kickforge
+```
 
-# Scaffold a new bot project
+Then scaffold a project and run:
+
+```bash
 kickforge init my-bot
 cd my-bot
-
 # Edit config.yaml with your Kick Dev credentials
-# Then run it
 python bot.py
 ```
 
@@ -225,6 +226,7 @@ KickForge is open source (MIT). Contributions welcome!
 - [x] Generic HTTP adapter (FiveM, custom games)
 - [x] Auto-clip pipeline (heat detection, FFmpeg, Shorts formatter)
 - [x] OBS overlay widgets (6 widgets via WebSocket)
+- [x] PyPI release v0.1.0
 - [ ] Documentation site
 
 ## License
@@ -233,4 +235,4 @@ MIT — do whatever you want with it. Build something cool.
 
 ---
 
-**Built by [Yargitay](https://kick.com/yargitay)** | [GitHub](https://github.com/alibeydilidev/kickforge) — streaming on Kick, building tools for streamers.
+**Built by [Yargitay](https://kick.com/yargitay)** | [GitHub](https://github.com/alibeydilidev/kickforge) | [PyPI](https://pypi.org/project/kickforge/) — streaming on Kick, building tools for streamers.
