@@ -17,3 +17,4 @@ venv/
 *.sqlite3
 clips/
 .DS_Store
+CLAUDE_CODE_BRIEF.md
