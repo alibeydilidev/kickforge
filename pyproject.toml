@@ -52,6 +52,7 @@ Issues = "https://github.com/alibeydilidev/kickforge/issues"
 
 [project.scripts]
 kickforge = "kickforge_core.cli:main"
+kickforge-clip = "kickforge_clip.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["kickforge_core*", "kickforge_bot*", "kickforge_gsi*", "kickforge_clip*", "kickforge_overlay*"]

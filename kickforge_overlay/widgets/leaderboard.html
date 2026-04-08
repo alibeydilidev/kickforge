@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Leaderboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:transparent;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden}
+.board{width:280px;padding:12px}
+.title{color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:2px;opacity:.7;margin-bottom:8px}
+.row{display:flex;align-items:center;padding:6px 10px;margin-bottom:4px;background:rgba(0,0,0,.5);border-radius:6px;color:#fff;font-size:13px;transition:all .3s ease}
+.rank{width:24px;font-weight:700;color:#ff6b00}
+.name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.amount{font-weight:700;color:#ffdd00}
+.row:nth-child(2) .rank{color:#ffd700}
+.row:nth-child(3) .rank{color:#c0c0c0}
+.row:nth-child(4) .rank{color:#cd7f32}
+</style>
+</head>
+<body>
+<div class="board">
+  <div class="title">Top Gifters</div>
+  <div id="list"></div>
+</div>
+<script>
+const params=new URLSearchParams(location.search);
+const maxRows=parseInt(params.get('max'))||5;
+const list=document.getElementById('list');
+const data={};
+
+function render(){
+  const sorted=Object.entries(data).sort((a,b)=>b[1]-a[1]).slice(0,maxRows);
+  list.innerHTML='';
+  sorted.forEach(([name,amount],i)=>{
+    const row=document.createElement('div');
+    row.className='row';
+    row.innerHTML=`<span class="rank">#${i+1}</span><span class="name">${name}</span><span class="amount">${amount}</span>`;
+    list.appendChild(row);
+  });
+}
+
+const ws=new WebSocket(`ws://${location.hostname||'localhost'}:${params.get('port')||'8765'}`);
+ws.onmessage=e=>{
+  const d=JSON.parse(e.data);
+  if(d.type==='gift_received'){
+    data[d.username]=(data[d.username]||0)+d.amount;
+    render();
+  }
+  if(d.type==='leaderboard_update'&&d.entries){
+    Object.keys(data).forEach(k=>delete data[k]);
+    d.entries.forEach(e=>{data[e.username]=e.amount});
+    render();
+  }
+};
+ws.onclose=()=>setTimeout(()=>location.reload(),3000);
+</script>
+</body>
+</html>

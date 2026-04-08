@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Event Feed</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:transparent;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden}
+.feed{width:320px;display:flex;flex-direction:column;gap:4px;padding:8px}
+.event{padding:8px 12px;background:rgba(0,0,0,.6);border-radius:8px;color:#fff;font-size:13px;
+  transform:translateX(100%);animation:slideIn .3s ease forwards;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@keyframes slideIn{to{transform:translateX(0)}}
+.event.fade{animation:fadeOut .5s ease forwards}
+@keyframes fadeOut{to{opacity:0;transform:translateX(-20px)}}
+.icon{margin-right:6px}
+</style>
+</head>
+<body>
+<div class="feed" id="feed"></div>
+<script>
+const params=new URLSearchParams(location.search);
+const maxItems=parseInt(params.get('max'))||10;
+const feed=document.getElementById('feed');
+
+function addEvent(icon,text){
+  const el=document.createElement('div');
+  el.className='event';
+  el.innerHTML=`<span class="icon">${icon}</span>${text}`;
+  feed.prepend(el);
+  while(feed.children.length>maxItems){
+    const last=feed.lastElementChild;
+    last.classList.add('fade');
+    setTimeout(()=>last.remove(),500);
+  }
+}
+
+const ws=new WebSocket(`ws://${location.hostname||'localhost'}:${params.get('port')||'8765'}`);
+ws.onmessage=e=>{
+  const d=JSON.parse(e.data);
+  switch(d.type){
+    case 'gift_received':addEvent('\uD83D\uDD25',`${d.username} sent ${d.amount} kicks`);break;
+    case 'follow':addEvent('\u2B50',`${d.username} followed`);break;
+    case 'sub':addEvent('\uD83C\uDF89',`${d.username} subscribed (${d.months}mo)`);break;
+  }
+};
+ws.onclose=()=>setTimeout(()=>location.reload(),3000);
+</script>
+</body>
+</html>

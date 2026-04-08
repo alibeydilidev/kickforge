@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Chaos Meter</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:transparent;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden}
+.container{width:300px;padding:16px;text-align:center;color:#fff}
+.label{font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;transition:color .3s}
+.track{height:20px;background:rgba(255,255,255,.1);border-radius:10px;overflow:hidden;position:relative}
+.fill{height:100%;border-radius:10px;transition:width .4s ease,background .4s ease;width:0}
+.level{font-size:11px;margin-top:6px;opacity:.7;transition:opacity .3s}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="label" id="label">CALM</div>
+  <div class="track"><div class="fill" id="fill"></div></div>
+  <div class="level" id="level">Chaos Level: 0</div>
+</div>
+<script>
+const params=new URLSearchParams(location.search);
+let chaos=0;
+const decay=parseFloat(params.get('decay'))||0.3;
+const giftMul=parseFloat(params.get('gift_mul'))||1;
+const maxChaos=100;
+
+const thresholds=[
+  {min:0,label:'CALM',color:'#00cc66'},
+  {min:30,label:'RISING',color:'#ffaa00'},
+  {min:60,label:'CHAOS',color:'#ff4400'},
+  {min:85,label:'MEGA CHAOS',color:'#ff0066'},
+];
+
+function update(){
+  chaos=Math.max(0,chaos-decay);
+  const pct=Math.min(100,chaos/maxChaos*100);
+  const fill=document.getElementById('fill');
+  fill.style.width=pct+'%';
+
+  let current=thresholds[0];
+  for(const t of thresholds){if(chaos>=t.min)current=t;}
+
+  fill.style.background=current.color;
+  document.getElementById('label').textContent=current.label;
+  document.getElementById('label').style.color=current.color;
+  document.getElementById('level').textContent=`Chaos Level: ${Math.round(chaos)}`;
+}
+setInterval(update,1000);
+
+const ws=new WebSocket(`ws://${location.hostname||'localhost'}:${params.get('port')||'8765'}`);
+ws.onmessage=e=>{
+  const d=JSON.parse(e.data);
+  if(d.type==='gift_received')chaos+=d.amount*giftMul;
+  if(d.type==='heat_score')chaos+=d.score*2;
+};
+ws.onclose=()=>setTimeout(()=>location.reload(),3000);
+</script>
+</body>
+</html>

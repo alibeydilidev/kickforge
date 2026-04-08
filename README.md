@@ -146,11 +146,12 @@ KickForge is open source (MIT). Contributions welcome!
 
 - [x] Core engine (OAuth, webhooks, events, API)
 - [x] CLI scaffolding (`kickforge init`)
-- [ ] Bot framework (commands, loyalty, moderation)
-- [ ] CS2 GSI adapter
-- [ ] Minecraft RCON adapter
-- [ ] Auto-clip pipeline
-- [ ] OBS overlay widgets
+- [x] Bot framework (commands, loyalty, moderation, polls, plugins)
+- [x] CS2 GSI adapter (read-only + RCON write)
+- [x] Minecraft RCON adapter
+- [x] Generic HTTP adapter (FiveM, custom games)
+- [x] Auto-clip pipeline (heat detection, FFmpeg, Shorts formatter)
+- [x] OBS overlay widgets (6 widgets via WebSocket)
 - [ ] Documentation site
 
 ## License

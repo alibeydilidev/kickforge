@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Chat Velocity</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:transparent;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden}
+.container{width:280px;padding:16px;color:#fff}
+.label{font-size:12px;text-transform:uppercase;letter-spacing:2px;opacity:.7;margin-bottom:4px}
+.value{font-size:48px;font-weight:700;line-height:1}
+.unit{font-size:14px;opacity:.6;margin-top:2px}
+.bar-wrap{margin-top:12px;height:6px;background:rgba(255,255,255,.15);border-radius:3px;overflow:hidden}
+.bar{height:100%;background:linear-gradient(90deg,#ff6b00,#ff3d00);border-radius:3px;transition:width .5s ease;width:0}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="label">Chat Velocity</div>
+  <div class="value" id="vel">0</div>
+  <div class="unit">msgs / min</div>
+  <div class="bar-wrap"><div class="bar" id="bar"></div></div>
+</div>
+<script>
+const params=new URLSearchParams(location.search);
+const color=params.get('color')||'#ff6b00';
+const maxVel=parseInt(params.get('max'))||300;
+document.querySelector('.bar').style.background=`linear-gradient(90deg,${color},#ff3d00)`;
+
+const ws=new WebSocket(`ws://${location.hostname||'localhost'}:${params.get('port')||'8765'}`);
+ws.onmessage=e=>{
+  const d=JSON.parse(e.data);
+  if(d.type!=='chat_velocity')return;
+  const v=Math.round(d.velocity);
+  document.getElementById('vel').textContent=v;
+  document.getElementById('bar').style.width=Math.min(100,v/maxVel*100)+'%';
+};
+ws.onclose=()=>setTimeout(()=>location.reload(),3000);
+</script>
+</body>
+</html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Prediction</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:transparent;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden}
+.container{width:320px;padding:16px;color:#fff}
+.question{font-size:16px;font-weight:700;margin-bottom:12px;text-align:center}
+.option{margin-bottom:8px}
+.opt-label{display:flex;justify-content:space-between;font-size:13px;margin-bottom:3px}
+.opt-bar{height:24px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden;position:relative}
+.opt-fill{height:100%;border-radius:4px;transition:width .4s ease}
+.opt-fill.a{background:linear-gradient(90deg,#00aaff,#0077cc)}
+.opt-fill.b{background:linear-gradient(90deg,#ff6b00,#cc4400)}
+.opt-count{position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:700}
+.timer{text-align:center;font-size:24px;font-weight:700;margin-top:12px;color:#ffdd00}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="container" id="panel">
+  <div class="question" id="question">Waiting for prediction...</div>
+  <div class="option">
+    <div class="opt-label"><span id="labelA">Option A</span><span id="pctA">0%</span></div>
+    <div class="opt-bar"><div class="opt-fill a" id="fillA" style="width:50%"><span class="opt-count" id="countA">0</span></div></div>
+  </div>
+  <div class="option">
+    <div class="opt-label"><span id="labelB">Option B</span><span id="pctB">0%</span></div>
+    <div class="opt-bar"><div class="opt-fill b" id="fillB" style="width:50%"><span class="opt-count" id="countB">0</span></div></div>
+  </div>
+  <div class="timer" id="timer"></div>
+</div>
+<script>
+const params=new URLSearchParams(location.search);
+let votesA=0,votesB=0;
+
+function render(){
+  const total=votesA+votesB||1;
+  const pA=Math.round(votesA/total*100);
+  const pB=100-pA;
+  document.getElementById('fillA').style.width=pA+'%';
+  document.getElementById('fillB').style.width=pB+'%';
+  document.getElementById('pctA').textContent=pA+'%';
+  document.getElementById('pctB').textContent=pB+'%';
+  document.getElementById('countA').textContent=votesA;
+  document.getElementById('countB').textContent=votesB;
+}
+
+const ws=new WebSocket(`ws://${location.hostname||'localhost'}:${params.get('port')||'8765'}`);
+ws.onmessage=e=>{
+  const d=JSON.parse(e.data);
+  if(d.type==='prediction_start'){
+    document.getElementById('question').textContent=d.question||'?';
+    document.getElementById('labelA').textContent=d.option_a||'A';
+    document.getElementById('labelB').textContent=d.option_b||'B';
+    votesA=0;votesB=0;render();
+  }
+  if(d.type==='prediction_vote'){
+    if(d.option==='a')votesA++;else votesB++;
+    render();
+  }
+  if(d.type==='prediction_update'){
+    votesA=d.votes_a||0;votesB=d.votes_b||0;render();
+    if(d.time_remaining!=null)document.getElementById('timer').textContent=d.time_remaining+'s';
+  }
+  if(d.type==='prediction_end'){
+    document.getElementById('timer').textContent=d.winner==='a'?'A WINS!':'B WINS!';
+  }
+};
+ws.onclose=()=>setTimeout(()=>location.reload(),3000);
+render();
+</script>
+</body>
+</html>

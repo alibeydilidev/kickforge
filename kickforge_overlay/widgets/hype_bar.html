@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Hype Bar</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:transparent;font-family:'Segoe UI',system-ui,sans-serif;overflow:hidden}
+.wrap{width:60px;height:300px;position:relative;margin:20px auto}
+.track{width:100%;height:100%;background:rgba(255,255,255,.1);border-radius:30px;overflow:hidden;position:relative}
+.fill{position:absolute;bottom:0;width:100%;background:linear-gradient(0deg,#ff6b00,#ff3d00);border-radius:30px;transition:height .4s ease}
+.pct{position:absolute;bottom:-28px;width:100%;text-align:center;color:#fff;font-size:14px;font-weight:700}
+.label{position:absolute;top:-24px;width:100%;text-align:center;color:#fff;font-size:11px;text-transform:uppercase;letter-spacing:1px;opacity:.7}
+@keyframes flash{0%,100%{opacity:1}50%{opacity:.3}}
+.maxed .fill{animation:flash .5s ease 3}
+.confetti{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10}
+.confetti span{position:absolute;width:8px;height:8px;border-radius:2px;animation:fall 1.5s ease forwards;opacity:0}
+@keyframes fall{0%{transform:translateY(-20px) rotate(0);opacity:1}100%{transform:translateY(320px) rotate(720deg);opacity:0}}
+</style>
+</head>
+<body>
+<div class="wrap" id="wrap">
+  <div class="label">HYPE</div>
+  <div class="track"><div class="fill" id="fill" style="height:0%"></div></div>
+  <div class="pct" id="pct">0%</div>
+</div>
+<div class="confetti" id="confetti"></div>
+<script>
+const params=new URLSearchParams(location.search);
+let hype=0;
+const decay=parseFloat(params.get('decay'))||0.5;
+const giftVal=parseFloat(params.get('gift_value'))||10;
+const followVal=parseFloat(params.get('follow_value'))||3;
+const subVal=parseFloat(params.get('sub_value'))||15;
+
+function update(){
+  hype=Math.max(0,hype-decay);
+  const p=Math.min(100,hype);
+  document.getElementById('fill').style.height=p+'%';
+  document.getElementById('pct').textContent=Math.round(p)+'%';
+  if(p>=100&&!document.getElementById('wrap').classList.contains('maxed')){
+    document.getElementById('wrap').classList.add('maxed');
+    spawnConfetti();
+    setTimeout(()=>document.getElementById('wrap').classList.remove('maxed'),2000);
+  }
+}
+setInterval(update,1000);
+
+function spawnConfetti(){
+  const c=document.getElementById('confetti');
+  const colors=['#ff6b00','#ffdd00','#00ff88','#00aaff','#ff00aa'];
+  for(let i=0;i<30;i++){
+    const s=document.createElement('span');
+    s.style.left=Math.random()*100+'%';
+    s.style.background=colors[Math.floor(Math.random()*colors.length)];
+    s.style.animationDelay=Math.random()*0.5+'s';
+    c.appendChild(s);
+    setTimeout(()=>s.remove(),2000);
+  }
+}
+
+const ws=new WebSocket(`ws://${location.hostname||'localhost'}:${params.get('port')||'8765'}`);
+ws.onmessage=e=>{
+  const d=JSON.parse(e.data);
+  if(d.type==='gift_received')hype+=giftVal;
+  else if(d.type==='follow')hype+=followVal;
+  else if(d.type==='sub')hype+=subVal;
+};
+ws.onclose=()=>setTimeout(()=>location.reload(),3000);
+</script>
+</body>
+</html>
