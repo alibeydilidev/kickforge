@@ -31,7 +31,10 @@ from kickforge_core.auth import KickAuth, generate_pkce_pair
 logger = logging.getLogger("kickforge.oauth")
 
 DEFAULT_PORT = 8421
-DEFAULT_HOST = "127.0.0.1"
+# Use "localhost" (not "127.0.0.1") because Kick does exact string
+# matching on redirect_uri between authorize and token exchange,
+# and the README/docs tell users to register the localhost form.
+DEFAULT_HOST = "localhost"
 DEFAULT_SCOPES: list[str] = [
     "user:read",
     "channel:read",
@@ -140,7 +143,9 @@ class OAuthServer:
                 state=self._state,
                 code_challenge=challenge,
             )
-            logger.info("Redirecting user to Kick authorize URL")
+            logger.info(
+                "Authorize URL built (redirect_uri=%r)", self.redirect_uri
+            )
             return RedirectResponse(url)
 
         @self.app.get("/auth/callback")
@@ -160,6 +165,10 @@ class OAuthServer:
             if state != self._state:
                 return self._finish(success=False, error="State mismatch (CSRF protection)")
 
+            logger.info(
+                "Callback received (redirect_uri=%r), exchanging code...",
+                self.redirect_uri,
+            )
             try:
                 await self.auth.exchange_code(
                     code=code,

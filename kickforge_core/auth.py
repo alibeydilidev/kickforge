@@ -206,6 +206,13 @@ class KickAuth:
         Pass ``code_verifier`` from the PKCE pair used in the
         authorization URL.
         """
+        logger.info(
+            "Exchanging authorization code for user token "
+            "(redirect_uri=%r, code_verifier=%s, code=%s...)",
+            redirect_uri,
+            "<set>" if code_verifier else "<none>",
+            code[:8] if code else "<none>",
+        )
         payload: dict[str, str] = {
             "grant_type": "authorization_code",
             "client_id": self.client_id,
