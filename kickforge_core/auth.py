@@ -317,32 +317,96 @@ class KickAuth:
     # Token persistence
     # ------------------------------------------------------------------
 
-    def _save_user_token(self, tp: TokenPair) -> None:
-        """Persist the user token to disk (chmod 600)."""
+    def _read_token_file(self) -> dict[str, object]:
+        """Read the raw tokens.json contents (returns empty dict if missing/bad)."""
+        path = self.token_file or TOKEN_FILE
+        if not path.exists():
+            return {}
+        try:
+            return json.loads(path.read_text()) or {}
+        except Exception:
+            logger.exception("Failed to read %s", path)
+            return {}
+
+    def _write_token_file(self, data: dict[str, object]) -> None:
+        """Write the raw tokens.json, preserving 600 perms."""
         path = self.token_file or TOKEN_FILE
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps(tp.to_dict(), indent=2))
+            path.write_text(json.dumps(data, indent=2))
             try:
                 path.chmod(0o600)
             except OSError:
                 pass
-            logger.debug("User token saved to %s", path)
         except Exception:
-            logger.exception("Failed to save user token to %s", path)
+            logger.exception("Failed to write %s", path)
+
+    def _save_user_token(self, tp: TokenPair) -> None:
+        """
+        Persist the user token to disk, preserving any other fields
+        (like chatroom_id / broadcaster_user_id) that may already
+        be stored in the file.
+        """
+        data = self._read_token_file()
+        data.update(tp.to_dict())
+        self._write_token_file(data)
+        logger.debug("User token saved to %s", self.token_file or TOKEN_FILE)
+
+    def save_channel_info(
+        self,
+        chatroom_id: int,
+        broadcaster_user_id: Optional[int] = None,
+        slug: Optional[str] = None,
+    ) -> None:
+        """
+        Persist channel metadata (chatroom_id + optional broadcaster id
+        and slug) alongside the user token.  Preserves existing token
+        fields.
+        """
+        data = self._read_token_file()
+        data["chatroom_id"] = int(chatroom_id)
+        if broadcaster_user_id is not None:
+            data["broadcaster_user_id"] = int(broadcaster_user_id)
+        if slug:
+            data["channel_slug"] = str(slug)
+        self._write_token_file(data)
+        logger.info(
+            "Saved channel info (chatroom_id=%d, slug=%s) to %s",
+            chatroom_id, slug, self.token_file or TOKEN_FILE,
+        )
+
+    def load_channel_info(self) -> dict[str, object]:
+        """
+        Read persisted channel info. Returns a dict with optional
+        keys ``chatroom_id``, ``broadcaster_user_id``, ``channel_slug``.
+        """
+        data = self._read_token_file()
+        info: dict[str, object] = {}
+        if "chatroom_id" in data:
+            try:
+                info["chatroom_id"] = int(data["chatroom_id"])  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                pass
+        if "broadcaster_user_id" in data:
+            try:
+                info["broadcaster_user_id"] = int(data["broadcaster_user_id"])  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                pass
+        if "channel_slug" in data:
+            info["channel_slug"] = str(data["channel_slug"])
+        return info
 
     def _load_user_token(self) -> Optional[TokenPair]:
         """Load a persisted user token from disk, if it exists."""
-        path = self.token_file or TOKEN_FILE
-        if not path.exists():
+        data = self._read_token_file()
+        if not data.get("access_token"):
             return None
         try:
-            data = json.loads(path.read_text())
             tp = TokenPair.from_dict(data)
-            logger.info("Loaded saved user token from %s", path)
+            logger.info("Loaded saved user token from %s", self.token_file or TOKEN_FILE)
             return tp
         except Exception:
-            logger.exception("Failed to load user token from %s", path)
+            logger.exception("Failed to parse saved user token")
             return None
 
     def clear_saved_token(self) -> None:

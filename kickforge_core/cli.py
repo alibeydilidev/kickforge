@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from typing import Optional
 
 
 def main() -> None:
@@ -36,6 +37,11 @@ def main() -> None:
     auth_cmd.add_argument(
         "--no-browser", action="store_true", help="Don't auto-open the browser"
     )
+    auth_cmd.add_argument(
+        "--channel",
+        default=None,
+        help="Channel slug for chatroom_id auto-resolve (default: $KICK_CHANNEL)",
+    )
 
     args = parser.parse_args()
 
@@ -46,7 +52,11 @@ def main() -> None:
     elif args.command == "run":
         _run_app(args.file, args.port)
     elif args.command == "auth":
-        _auth_flow(port=args.port, open_browser=not args.no_browser)
+        _auth_flow(
+            port=args.port,
+            open_browser=not args.no_browser,
+            channel=args.channel,
+        )
     else:
         parser.print_help()
 
@@ -229,13 +239,20 @@ def _run_app(file: str, port: int) -> None:
     subprocess.run([sys.executable, file], check=False)
 
 
-def _auth_flow(port: int = 8421, open_browser: bool = True) -> None:
+def _auth_flow(
+    port: int = 8421,
+    open_browser: bool = True,
+    channel: Optional[str] = None,
+) -> None:
     """
     Run the OAuth authorization-code flow to obtain a user access token.
 
     Reads KICK_CLIENT_ID and KICK_CLIENT_SECRET from .env, spins up a
     local callback server on ``port``, opens the user's browser, and
     saves the resulting token to ~/.kickforge/tokens.json.
+
+    If ``channel`` (or $KICK_CHANNEL) is set, also tries to resolve
+    and persist the chatroom_id for that channel in the same file.
     """
     import asyncio
     import os
@@ -255,16 +272,24 @@ def _auth_flow(port: int = 8421, open_browser: bool = True) -> None:
         print("Get them at https://kick.com/settings/developer")
         sys.exit(1)
 
+    resolved_channel = channel or os.getenv("KICK_CHANNEL", "").strip() or None
+
     from kickforge_core.auth import KickAuth, TOKEN_FILE
     from kickforge_core.oauth_server import OAuthServer
 
     auth = KickAuth(client_id=client_id, client_secret=client_secret)
-    server = OAuthServer(auth=auth, port=port)
+    server = OAuthServer(
+        auth=auth, port=port, channel_slug=resolved_channel
+    )
 
     print("=" * 60)
     print("KickForge OAuth Flow")
     print("=" * 60)
     print(f"Callback URL: {server.redirect_uri}")
+    if resolved_channel:
+        print(f"Channel:      {resolved_channel} (for chatroom_id auto-resolve)")
+    else:
+        print("Channel:      (none — pass --channel or set KICK_CHANNEL in .env)")
     print()
     print("IMPORTANT: This callback URL must be registered in your")
     print("Kick Developer App at https://kick.com/settings/developer")
@@ -280,8 +305,15 @@ def _auth_flow(port: int = 8421, open_browser: bool = True) -> None:
         if success:
             print()
             print(f"Token saved to {TOKEN_FILE}")
-            print("Your bot can now send chat messages.")
+            if server.chatroom_id:
+                print(f"chatroom_id = {server.chatroom_id} (auto-resolved)")
+            elif resolved_channel:
+                print(
+                    "chatroom_id could not be auto-resolved. "
+                    "Set KICK_CHATROOM_ID in .env as a fallback."
+                )
             print()
+            print("Your bot can now send chat messages.")
             print("Next: python examples/minimal_bot.py")
         else:
             print()

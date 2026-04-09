@@ -162,6 +162,7 @@ class KickAPI:
         self,
         slug: str,
         channel_data: Optional[dict[str, Any]] = None,
+        try_user_token: bool = False,
     ) -> Optional[int]:
         """
         Resolve a channel slug to its Pusher chatroom_id.
@@ -169,15 +170,20 @@ class KickAPI:
         Tries, in order:
         1. The official ``/public/v1/channels`` response (usually doesn't
            include chatroom_id, but some endpoints do).
-        2. The unauthenticated ``kick.com/api/v2/channels/{slug}``
+        2. ``kick.com/api/v2/channels/{slug}`` with the authenticated
+           user token (only if ``try_user_token=True``) — sometimes
+           Cloudflare lets authenticated requests through.
+        3. The unauthenticated ``kick.com/api/v2/channels/{slug}``
            endpoint with a browser User-Agent.
-        3. Scraping the ``kick.com/{slug}`` HTML page — the chatroom ID
+        4. Scraping the ``kick.com/{slug}`` HTML page — the chatroom ID
            is embedded in a Next.js data block.
 
         Args:
             slug: Channel slug.
             channel_data: Pre-fetched response from ``get_channel()`` to
                 avoid a duplicate API call.
+            try_user_token: If True, also try the legacy endpoint with
+                an ``Authorization: Bearer <user-token>`` header.
 
         Returns None if every method fails.
         """
@@ -210,7 +216,39 @@ class KickAPI:
             "Accept-Language": "en-US,en;q=0.9",
         }
 
-        # 2) Legacy unauthenticated JSON endpoint
+        # 2) Legacy endpoint with authenticated user token
+        if try_user_token:
+            try:
+                user_token = await self.auth.get_valid_token("user")
+                async with httpx.AsyncClient(
+                    timeout=10.0, follow_redirects=True
+                ) as client:
+                    response = await client.get(
+                        f"https://kick.com/api/v2/channels/{slug}",
+                        headers={
+                            **browser_headers,
+                            "Authorization": f"Bearer {user_token}",
+                        },
+                    )
+                    if response.status_code == 200:
+                        data = response.json()
+                        chatroom = data.get("chatroom") or {}
+                        if chatroom.get("id"):
+                            logger.info(
+                                "Resolved chatroom_id from kick.com/api/v2 (user token)"
+                            )
+                            return int(chatroom["id"])
+                    else:
+                        logger.debug(
+                            "kick.com/api/v2 with user token returned %d",
+                            response.status_code,
+                        )
+            except Exception:
+                logger.debug(
+                    "User token chatroom lookup failed", exc_info=True
+                )
+
+        # 3) Legacy unauthenticated JSON endpoint
         try:
             async with httpx.AsyncClient(
                 timeout=10.0, follow_redirects=True

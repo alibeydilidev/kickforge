@@ -107,7 +107,7 @@ Everything flows through the **Event Bus**. You register handlers with `@app.on(
 
 ## Bot Setup
 
-To let your bot **send** chat messages (not just listen), you need a user access token with `chat:write` scope. KickForge has a built-in OAuth flow that handles this in under a minute.
+To let your bot **send** chat messages (not just listen), you need a user access token with `chat:write` scope. KickForge has a built-in OAuth flow that handles this — and auto-resolves your channel's `chatroom_id` at the same time — in under a minute.
 
 **1. Register the callback URL in your Kick Dev App**
 
@@ -117,25 +117,44 @@ Go to [kick.com/settings/developer](https://kick.com/settings/developer) and add
 http://localhost:8421/auth/callback
 ```
 
-**2. Run the auth flow**
+**2. Set your channel in `.env`**
+
+```
+KICK_CLIENT_ID=...
+KICK_CLIENT_SECRET=...
+KICK_CHANNEL=yourchannelslug
+```
+
+**3. Run the auth flow**
 
 ```bash
 kickforge auth
 ```
 
+or pass the channel explicitly:
+
+```bash
+kickforge auth --channel yourchannelslug
+```
+
 This will:
 - Start a tiny local server on port 8421
 - Open your browser to Kick's authorize page (with PKCE)
-- After you click Approve, save the token to `~/.kickforge/tokens.json`
+- After you click Approve:
+  - Save the user token to `~/.kickforge/tokens.json`
+  - Auto-resolve your `chatroom_id` (first with the new user token, then via browser-side JavaScript that bypasses Cloudflare)
+  - Save the `chatroom_id` in the same tokens.json file
 
 You'll see:
 
 ```
 Token saved to /Users/you/.kickforge/tokens.json
+chatroom_id = 12345 (auto-resolved)
+
 Your bot can now send chat messages.
 ```
 
-**3. Run your bot**
+**4. Run your bot**
 
 ```bash
 python examples/minimal_bot.py
@@ -143,12 +162,11 @@ python examples/minimal_bot.py
 
 Now the bot both listens (via Pusher WebSocket) AND writes to chat. Tokens auto-refresh in the background, so you only need to run `kickforge auth` once.
 
-**Troubleshooting:** If chat sending still returns 401, make sure:
-- Your Kick Dev App has `chat:write` scope enabled
-- You clicked Approve in the browser (not Deny)
-- The callback URL in the Kick dashboard exactly matches `http://localhost:8421/auth/callback`
+**Troubleshooting:**
 
-Run `kickforge auth` again to re-authorize at any time.
+- **chat sending returns 401:** Your Kick Dev App's `chat:write` scope may not be enabled, or you clicked Deny. Run `kickforge auth` again.
+- **chatroom_id not auto-resolved:** The browser fetch to `kick.com/api/v2/channels/{slug}` may have been blocked by CORS. Set `KICK_CHATROOM_ID=12345` in `.env` as a manual fallback — find the value by opening `https://kick.com/api/v2/channels/your-slug` in any browser tab.
+- **redirect_uri mismatch:** Make sure the callback URL in your Kick Dev App exactly matches `http://localhost:8421/auth/callback` (not `127.0.0.1`, no trailing slash, `http://` not `https://`).
 
 ---
 

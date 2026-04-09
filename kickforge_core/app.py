@@ -271,7 +271,22 @@ class KickApp:
                     logger.exception("Failed to resolve channel '%s'", channel)
 
             if self.mode in ("websocket", "hybrid"):
-                # Fall back to KICK_CHATROOM_ID env var if API lookup failed
+                # Lookup order:
+                #   1. API (already tried in self.connect)
+                #   2. ~/.kickforge/tokens.json (saved by `kickforge auth`)
+                #   3. KICK_CHATROOM_ID env var (last-resort manual fallback)
+                if not self._chatroom_id:
+                    saved = self.auth.load_channel_info()
+                    disk_chatroom = saved.get("chatroom_id")
+                    if disk_chatroom:
+                        self._chatroom_id = int(disk_chatroom)
+                        logger.info(
+                            "Using chatroom_id=%d from ~/.kickforge/tokens.json",
+                            self._chatroom_id,
+                        )
+                        if not self._broadcaster_id and saved.get("broadcaster_user_id"):
+                            self._broadcaster_id = int(saved["broadcaster_user_id"])
+
                 if not self._chatroom_id:
                     env_chatroom = os.getenv("KICK_CHATROOM_ID", "").strip()
                     if env_chatroom:
@@ -290,17 +305,19 @@ class KickApp:
                 if not self._chatroom_id:
                     slug = channel or "YOUR_SLUG"
                     raise KickForgeError(
-                        "Could not resolve chatroom_id automatically.\n"
+                        "Could not resolve chatroom_id.\n"
                         "\n"
-                        "Kick's public API doesn't expose chatroom_id, and the\n"
-                        "fallback endpoints are blocked by Cloudflare from Python.\n"
+                        "Run 'kickforge auth' to obtain a user token AND\n"
+                        "auto-resolve the chatroom_id in one step:\n"
+                        f"    kickforge auth --channel {slug}\n"
                         "\n"
-                        "Quick fix — find it once in your browser:\n"
-                        f"  1. Open this URL in any browser: https://kick.com/api/v2/channels/{slug}\n"
-                        "  2. Find the \"chatroom\" object and copy its \"id\" value\n"
-                        "  3. Add it to your .env file:\n"
-                        "       KICK_CHATROOM_ID=12345\n"
-                        "  4. Re-run the bot.\n"
+                        "The browser-side JavaScript in the auth success page\n"
+                        "fetches kick.com/api/v2/channels/{slug} (where\n"
+                        "Cloudflare lets real browsers through) and POSTs the\n"
+                        "chatroom_id back to be saved in ~/.kickforge/tokens.json.\n"
+                        "\n"
+                        "If that still doesn't work, set KICK_CHATROOM_ID in .env\n"
+                        f"manually — find it at https://kick.com/api/v2/channels/{slug}\n"
                     )
                 self.pusher = PusherClient(
                     bus=self.bus,
