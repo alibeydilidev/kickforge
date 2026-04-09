@@ -1,10 +1,11 @@
-# 🔥 KickForge
+# KickForge
 
 **The open-source toolkit for interactive Kick.com streams.**
 
 Build bots, connect games, automate clips, and create real-time overlays — all with Python.
 
 [![PyPI](https://img.shields.io/pypi/v/kickforge)](https://pypi.org/project/kickforge/)
+[![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](https://github.com/alibeydilidev/kickforge/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 
@@ -12,89 +13,127 @@ Build bots, connect games, automate clips, and create real-time overlays — all
 
 ## What is KickForge?
 
-KickForge is a modular Python toolkit that lets you build interactive experiences on Kick.com. It handles the boring parts (OAuth, webhooks, API calls) so you can focus on the fun parts (making your stream chaotic, engaging, and profitable).
+KickForge is a modular Python toolkit that lets you build interactive experiences on Kick.com. It handles the boring parts (OAuth, WebSockets, webhooks, API calls) so you can focus on the fun parts (making your stream chaotic, engaging, and profitable).
+
+**Zero infrastructure required.** By default, KickForge connects directly to Kick's real-time Pusher WebSocket for chat — no ngrok, no public URL, no webhook server. Just run your bot.
 
 ### Packages
 
 | Package | What it does |
 |---|---|
-| **kickforge-core** | OAuth 2.1, webhook server, event bus, REST API client |
+| **kickforge-core** | OAuth 2.1 + PKCE, WebSocket chat client, webhook server, event bus, REST API |
 | **kickforge-bot** | Chat commands, loyalty/XP, moderation, polls, plugins |
 | **kickforge-gsi** | Game integrations — CS2, Minecraft, GTA via RCON/API |
 | **kickforge-clip** | Auto-detect hype moments, cut clips, export to Shorts |
 | **kickforge-overlay** | Real-time OBS widgets via WebSocket |
 
+---
+
 ## Quick Start
+
+Three steps, nothing else.
+
+### 1. Install
 
 ```bash
 pip install kickforge
 ```
 
-Then scaffold a project and run:
+### 2. Get a user token
+
+Copy `.env.example` to `.env` and add your Kick credentials (get them at [kick.com/settings/developer](https://kick.com/settings/developer)):
+
+```
+KICK_CLIENT_ID=your_client_id
+KICK_CLIENT_SECRET=your_client_secret
+KICK_CHANNEL=yourslug
+```
+
+Make sure `http://localhost:8421/auth/callback` is registered under **Redirect URIs** in your Kick Dev App settings.
+
+Then run:
 
 ```bash
-kickforge init my-bot
-cd my-bot
-# Edit config.yaml with your Kick Dev credentials
-python bot.py
+kickforge auth --channel yourslug
 ```
+
+Browser opens → click Approve → `~/.kickforge/tokens.json` is saved with your user token AND your channel's `chatroom_id` (auto-resolved). Done.
+
+### 3. Run your bot
+
+```bash
+python examples/minimal_bot.py
+```
+
+Your bot now **listens** (via Pusher WebSocket) and **writes** (via Kick's chat API). No webhook, no ngrok, no extra config.
+
+---
 
 ## 30-Second Bot
 
 ```python
 from kickforge_core import KickApp
 
-app = KickApp(
-    client_id="YOUR_CLIENT_ID",
-    client_secret="YOUR_CLIENT_SECRET",
-)
+# Credentials loaded from .env automatically
+app = KickApp()
 
 @app.on("chat.message.sent")
 async def on_chat(event):
     if event.message == "!ping":
-        await app.say("pong! 🏓")
+        await app.say("pong!")
 
 @app.on("kicks.gifted")
 async def on_gift(event):
-    await app.say(f"🔥 {event.gifter_username} sent {event.kicks_amount} kicks!")
+    await app.say(f"{event.gifter_username} sent {event.kicks_amount} kicks!")
 
-app.run(port=8420)
+app.run(channel="yourslug")
 ```
 
-## Interactive Gaming (CS2 Example)
+---
 
-```python
-from kickforge_core import KickApp
+## How It Works
 
-app = KickApp(client_id="...", client_secret="...")
+KickForge has two independent event paths that flow into the same `EventBus`:
 
-@app.on("kicks.gifted")
-async def on_gift(event):
-    if event.kicks_amount >= 50:
-        # Send RCON command to your CS2 server
-        execute_rcon("sv_gravity 200")  # Low gravity!
-        await app.say(f"🪐 {event.gifter_username} activated LOW GRAVITY!")
+### Reading chat — Pusher WebSocket (default)
 
-app.run()
+Kick's chat runs on top of [Pusher](https://pusher.com/docs/channels/library_auth_reference/pusher-websockets-protocol/). KickForge connects directly to Kick's public Pusher endpoint and subscribes to your chatroom channel (`chatrooms.{id}.v2`). Chat messages, follows, subs, and kicks arrive in real time over a single WebSocket.
+
+- No public URL needed
+- No webhook registration
+- No ngrok tunnel
+- Works behind NAT / firewalls
+- Survives reconnects automatically
+
+Events arrive as `ChatMessageEvent`, `FollowEvent`, `GiftEvent`, `SubscriptionEvent` — the same types the webhook path emits, so your handlers don't care which transport was used.
+
+### Writing to chat — OAuth 2.1 + PKCE
+
+Sending chat messages requires a user access token with `chat:write` scope. The built-in `kickforge auth` command walks you through Kick's OAuth 2.1 flow (with PKCE S256 code challenge):
+
+1. Spins up a local server on port 8421
+2. Opens your browser to Kick's authorize page
+3. Captures the callback, exchanges the code for a token
+4. **Auto-resolves your `chatroom_id`** via browser-side JavaScript that bypasses Cloudflare
+5. Persists everything to `~/.kickforge/tokens.json` (chmod 600)
+
+Refresh tokens keep the session alive indefinitely — you only run `kickforge auth` once.
+
+### Architecture
+
+```
+Kick Pusher WebSocket ─────┐
+                            ├──▶ EventBus ──▶ Your @app.on() handlers
+Kick Webhook HTTP POST ────┘
+                                   │
+                                   └──▶ REST API (authenticated) ──▶ Kick.com
 ```
 
-See [`examples/cs2_interactive.py`](https://github.com/alibeydilidev/kickforge/blob/main/examples/cs2_interactive.py) for a full interactive CS2 setup with tier-based actions.
+---
 
-## Architecture
+## Supported Events
 
-```
-Kick.com ──webhook──▶ KickForge Core ──events──▶ Your Code
-                           │                        │
-                      Event Bus              Game Adapters
-                      REST API               OBS Overlays
-                      Auth Manager           Clip Pipeline
-```
-
-Everything flows through the **Event Bus**. You register handlers with `@app.on("event_type")` and KickForge routes events to your code. No polling, no WebSocket management, no token refresh headaches.
-
-## Supported Kick Events
-
-| Event | Trigger |
+| Event | When it fires |
 |---|---|
 | `chat.message.sent` | Someone sends a chat message |
 | `channel.followed` | New follower |
@@ -105,194 +144,115 @@ Everything flows through the **Event Bus**. You register handlers with `@app.on(
 | `livestream.status.updated` | Stream goes live/offline |
 | `moderation.banned` | User banned |
 
-## Bot Setup
-
-To let your bot **send** chat messages (not just listen), you need a user access token with `chat:write` scope. KickForge has a built-in OAuth flow that handles this — and auto-resolves your channel's `chatroom_id` at the same time — in under a minute.
-
-**1. Register the callback URL in your Kick Dev App**
-
-Go to [kick.com/settings/developer](https://kick.com/settings/developer) and add this to your app's **Redirect URIs**:
-
-```
-http://localhost:8421/auth/callback
-```
-
-**2. Set your channel in `.env`**
-
-```
-KICK_CLIENT_ID=...
-KICK_CLIENT_SECRET=...
-KICK_CHANNEL=yourchannelslug
-```
-
-**3. Run the auth flow**
-
-```bash
-kickforge auth
-```
-
-or pass the channel explicitly:
-
-```bash
-kickforge auth --channel yourchannelslug
-```
-
-This will:
-- Start a tiny local server on port 8421
-- Open your browser to Kick's authorize page (with PKCE)
-- After you click Approve:
-  - Save the user token to `~/.kickforge/tokens.json`
-  - Auto-resolve your `chatroom_id` (first with the new user token, then via browser-side JavaScript that bypasses Cloudflare)
-  - Save the `chatroom_id` in the same tokens.json file
-
-You'll see:
-
-```
-Token saved to /Users/you/.kickforge/tokens.json
-chatroom_id = 12345 (auto-resolved)
-
-Your bot can now send chat messages.
-```
-
-**4. Run your bot**
-
-```bash
-python examples/minimal_bot.py
-```
-
-Now the bot both listens (via Pusher WebSocket) AND writes to chat. Tokens auto-refresh in the background, so you only need to run `kickforge auth` once.
-
-**Troubleshooting:**
-
-- **chat sending returns 401:** Your Kick Dev App's `chat:write` scope may not be enabled, or you clicked Deny. Run `kickforge auth` again.
-- **chatroom_id not auto-resolved:** The browser fetch to `kick.com/api/v2/channels/{slug}` may have been blocked by CORS. Set `KICK_CHATROOM_ID=12345` in `.env` as a manual fallback — find the value by opening `https://kick.com/api/v2/channels/your-slug` in any browser tab.
-- **redirect_uri mismatch:** Make sure the callback URL in your Kick Dev App exactly matches `http://localhost:8421/auth/callback` (not `127.0.0.1`, no trailing slash, `http://` not `https://`).
+All of these fire identically whether you're in `websocket` mode (default), `webhook` mode, or `hybrid` mode.
 
 ---
 
-## First Real Test
+## Interactive Gaming (CS2 Example)
 
-End-to-end in 5 minutes: wire up KickForge to the real Kick API and see a live event arrive.
+```python
+from kickforge_core import KickApp
+from kickforge_gsi import CS2RCONAdapter, TierEngine, KickGameBridge
 
-**1. Install and configure**
+app = KickApp()
+adapter = CS2RCONAdapter(host="192.168.1.10", port=27015, password="...")
+engine = TierEngine.from_yaml("tiers.yaml")
+
+bridge = KickGameBridge(
+    bus=app.bus,
+    adapter=adapter,
+    tier_engine=engine,
+)
+bridge.register()
+
+app.run(channel="yourslug")
+```
+
+See [`examples/cs2_interactive.py`](https://github.com/alibeydilidev/kickforge/blob/main/examples/cs2_interactive.py) for a full interactive CS2 setup with tier-based actions, and [`docs/adapters.md`](https://github.com/alibeydilidev/kickforge/blob/main/docs/adapters.md) for writing your own game adapter.
+
+---
+
+## Advanced: Webhook Mode
+
+If you prefer the traditional webhook model (Kick pushes events to a public HTTPS endpoint), KickForge supports it too. Use `mode="webhook"` when you need delivery reliability guarantees or signed events.
+
+```python
+app = KickApp(mode="webhook", verify_signatures=True)
+app.run(channel="yourslug", port=8420)
+```
+
+This requires:
+
+- A public HTTPS URL pointing to your bot (ngrok, Cloudflare Tunnel, or a deployed server)
+- The URL registered under Webhook URL in your Kick Dev App
+- Event subscriptions via `python examples/subscribe_events.py`
 
 ```bash
-pip install kickforge
-cp .env.example .env
-```
+# Terminal 1: run your bot
+python bot.py
 
-Edit `.env` with your Kick Developer credentials (get them at [kick.com/settings/developer](https://kick.com/settings/developer)):
-
-```
-KICK_CLIENT_ID=your_client_id_here
-KICK_CLIENT_SECRET=your_client_secret_here
-KICK_BROADCASTER_ID=your_broadcaster_user_id_here
-```
-
-> Your `KICK_BROADCASTER_ID` is the numeric user ID of the channel you want to receive events for. You can find it in your Kick Developer dashboard or by calling `GET /public/v1/channels?slug=your_channel_name`.
-
-**2. Start ngrok first**
-
-```bash
+# Terminal 2: expose to internet
 ngrok http 8420
-```
+# copy the HTTPS URL into Kick Dev App → Webhook URL
 
-Copy the HTTPS forwarding URL (e.g. `https://a1b2c3.ngrok-free.app`).
-
-**3. Set the webhook URL in Kick**
-
-Go to your [Kick Developer App settings](https://kick.com/settings/developer). Paste your ngrok URL **with `/webhook` appended** as the Webhook URL:
-
-```
-https://a1b2c3.ngrok-free.app/webhook
-```
-
-> This is configured in the Kick dashboard, not in your `.env` file. Kick needs to know where to send events, and this is how you tell it.
-
-**4. Subscribe to events**
-
-```bash
+# Terminal 3: subscribe to events
 python examples/subscribe_events.py
 ```
 
-This tells the Kick API which events you want to receive. You should see output like:
-
-```
-Subscribing to 5 events for broadcaster 123456...
-Done. Your webhook server will now receive these events.
-```
-
-**5. Start the bot**
-
-```bash
-python examples/minimal_bot.py
-```
-
-You should see the KickForge banner and "Waiting for Kick events...".
-
-**6. Send a test message**
-
-Open your Kick channel in a browser and type `!ping` in chat. Back in your bot terminal you should see:
-
-```
-Received webhook: type=chat.message.sent subscription=...
-Executed command: !ping by your_username
-```
-
-The bot replies "pong!" in chat. You're live.
+You can also run both transports at once with `mode="hybrid"`.
 
 ---
 
-## Setup Webhook (Development)
+## Troubleshooting
 
-KickForge needs a public URL for Kick to send webhooks to. During development:
+- **Chat sending returns 401:** Run `kickforge auth --channel yourslug` again. Your Kick Dev App must have `chat:write` scope enabled.
+- **chatroom_id not auto-resolved:** The browser-side fetch may have been blocked by CORS on a particular Kick version. Set `KICK_CHATROOM_ID=12345` in `.env` manually — find the value by opening `https://kick.com/api/v2/channels/yourslug` in any browser tab.
+- **redirect_uri mismatch during auth:** Make sure the callback URL in your Kick Dev App is exactly `http://localhost:8421/auth/callback` (not `127.0.0.1`, no trailing slash, `http://` not `https://`).
 
-```bash
-# Terminal 1: Run your bot
-python bot.py
-
-# Terminal 2: Expose to internet
-ngrok http 8420
-
-# Copy the ngrok URL (e.g. https://abc123.ngrok.io)
-# Set it in Kick Dev settings: https://kick.com/settings/developer
-# Webhook URL: https://abc123.ngrok.io/webhook
-```
+---
 
 ## Project Structure
 
 ```
 kickforge/
-├── kickforge_core/     # OAuth, webhooks, events, API
+├── kickforge_core/     # OAuth, WebSocket, webhooks, events, API
 ├── kickforge_bot/      # Chat bot framework
 ├── kickforge_gsi/      # Game integrations (CS2, MC, GTA)
 ├── kickforge_clip/     # Auto clip pipeline
 ├── kickforge_overlay/  # OBS widgets
 ├── examples/           # Working examples
-├── tests/              # Test suite
+├── tests/              # 293 tests
 └── docs/               # Documentation
 ```
+
+---
 
 ## Contributing
 
 KickForge is open source (MIT). Contributions welcome!
 
-- 🐛 Found a bug? [Open an issue](https://github.com/alibeydilidev/kickforge/issues)
-- 💡 Got an idea? [Start a discussion](https://github.com/alibeydilidev/kickforge/discussions)
-- 🔧 Want to add a game adapter? See the [adapter guide](https://github.com/alibeydilidev/kickforge/blob/main/docs/adapters.md)
+- Found a bug? [Open an issue](https://github.com/alibeydilidev/kickforge/issues)
+- Got an idea? [Start a discussion](https://github.com/alibeydilidev/kickforge/discussions)
+- Want to add a game adapter? See the [adapter guide](https://github.com/alibeydilidev/kickforge/blob/main/docs/adapters.md)
+
+---
 
 ## Roadmap
 
-- [x] Core engine (OAuth, webhooks, events, API)
-- [x] CLI scaffolding (`kickforge init`)
+- [x] Core engine (OAuth 2.1 + PKCE, webhooks, events, API)
+- [x] Pusher WebSocket chat client (no ngrok needed)
+- [x] OAuth user-token flow with auto chatroom_id resolve
+- [x] CLI scaffolding (`kickforge init`, `kickforge auth`)
 - [x] Bot framework (commands, loyalty, moderation, polls, plugins)
 - [x] CS2 GSI adapter (read-only + RCON write)
 - [x] Minecraft RCON adapter
 - [x] Generic HTTP adapter (FiveM, custom games)
 - [x] Auto-clip pipeline (heat detection, FFmpeg, Shorts formatter)
 - [x] OBS overlay widgets (6 widgets via WebSocket)
-- [x] PyPI release v0.1.0
+- [x] PyPI release
 - [ ] Documentation site
+
+---
 
 ## License
 
@@ -300,4 +260,4 @@ MIT — do whatever you want with it. Build something cool.
 
 ---
 
-**Built by [Yargitay](https://kick.com/yargitay)** | [GitHub](https://github.com/alibeydilidev/kickforge) | [PyPI](https://pypi.org/project/kickforge/) — streaming on Kick, building tools for streamers.
+**Built by [Yargitay](https://kick.com/yargitayy)** | [GitHub](https://github.com/alibeydilidev/kickforge) | [PyPI](https://pypi.org/project/kickforge/) — streaming on Kick, building tools for streamers.

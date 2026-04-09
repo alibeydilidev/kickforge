@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kickforge"
-version = "0.2.1"
+version = "0.3.0"
 description = "The open-source toolkit for interactive Kick.com streams — bots, game integrations, overlays & clip automation."
 readme = "README.md"
 license = "MIT"
