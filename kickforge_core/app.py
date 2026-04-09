@@ -245,10 +245,28 @@ class KickApp:
                     logger.exception("Failed to resolve channel '%s'", channel)
 
             if self.mode in ("websocket", "hybrid"):
+                # Fall back to KICK_CHATROOM_ID env var if API lookup failed
+                if not self._chatroom_id:
+                    env_chatroom = os.getenv("KICK_CHATROOM_ID", "").strip()
+                    if env_chatroom:
+                        try:
+                            self._chatroom_id = int(env_chatroom)
+                            logger.info(
+                                "Using chatroom_id=%d from KICK_CHATROOM_ID env var",
+                                self._chatroom_id,
+                            )
+                        except ValueError:
+                            logger.error(
+                                "KICK_CHATROOM_ID must be an integer, got '%s'",
+                                env_chatroom,
+                            )
+
                 if not self._chatroom_id:
                     raise KickForgeError(
-                        "Could not resolve chatroom_id. "
-                        "Pass a valid 'channel' slug to app.run(channel=...)."
+                        "Could not resolve chatroom_id. Either:\n"
+                        "  1. Pass a valid 'channel' slug to app.run(channel=...)\n"
+                        "  2. Set KICK_CHATROOM_ID in your .env file\n"
+                        "Find your chatroom_id at: https://kick.com/api/v2/channels/YOUR_SLUG"
                     )
                 self.pusher = PusherClient(
                     bus=self.bus,
