@@ -59,8 +59,13 @@ def _make_error_response(status_code: int = 401, error: str = "invalid_client"):
 
 class TestKickAuth:
     @pytest.fixture
-    def auth(self):
-        return KickAuth(client_id="test-id", client_secret="test-secret")
+    def auth(self, tmp_path):
+        # Use a temp token_file so tests don't touch ~/.kickforge/tokens.json
+        return KickAuth(
+            client_id="test-id",
+            client_secret="test-secret",
+            token_file=tmp_path / "tokens.json",
+        )
 
     @pytest.mark.asyncio
     async def test_get_app_token(self, auth):

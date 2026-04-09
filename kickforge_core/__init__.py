@@ -20,7 +20,8 @@ Quick start:
 """
 
 from kickforge_core.app import KickApp
-from kickforge_core.auth import KickAuth, TokenPair
+from kickforge_core.auth import KickAuth, TokenPair, generate_pkce_pair, TOKEN_FILE
+from kickforge_core.oauth_server import OAuthServer
 from kickforge_core.events import (
     Event,
     EventBus,
@@ -50,6 +51,9 @@ __all__ = [
     "KickApp",
     "KickAuth",
     "TokenPair",
+    "generate_pkce_pair",
+    "TOKEN_FILE",
+    "OAuthServer",
     "Event",
     "EventBus",
     "ChatMessageEvent",

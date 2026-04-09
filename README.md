@@ -105,6 +105,53 @@ Everything flows through the **Event Bus**. You register handlers with `@app.on(
 | `livestream.status.updated` | Stream goes live/offline |
 | `moderation.banned` | User banned |
 
+## Bot Setup
+
+To let your bot **send** chat messages (not just listen), you need a user access token with `chat:write` scope. KickForge has a built-in OAuth flow that handles this in under a minute.
+
+**1. Register the callback URL in your Kick Dev App**
+
+Go to [kick.com/settings/developer](https://kick.com/settings/developer) and add this to your app's **Redirect URIs**:
+
+```
+http://localhost:8421/auth/callback
+```
+
+**2. Run the auth flow**
+
+```bash
+kickforge auth
+```
+
+This will:
+- Start a tiny local server on port 8421
+- Open your browser to Kick's authorize page (with PKCE)
+- After you click Approve, save the token to `~/.kickforge/tokens.json`
+
+You'll see:
+
+```
+Token saved to /Users/you/.kickforge/tokens.json
+Your bot can now send chat messages.
+```
+
+**3. Run your bot**
+
+```bash
+python examples/minimal_bot.py
+```
+
+Now the bot both listens (via Pusher WebSocket) AND writes to chat. Tokens auto-refresh in the background, so you only need to run `kickforge auth` once.
+
+**Troubleshooting:** If chat sending still returns 401, make sure:
+- Your Kick Dev App has `chat:write` scope enabled
+- You clicked Approve in the browser (not Deny)
+- The callback URL in the Kick dashboard exactly matches `http://localhost:8421/auth/callback`
+
+Run `kickforge auth` again to re-authorize at any time.
+
+---
+
 ## First Real Test
 
 End-to-end in 5 minutes: wire up KickForge to the real Kick API and see a live event arrive.

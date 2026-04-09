@@ -34,7 +34,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from kickforge_core import KickApp
-from kickforge_core.exceptions import APIError
+from kickforge_core.exceptions import APIError, TokenExpiredError
 
 logger = logging.getLogger("minimal_bot")
 
@@ -46,12 +46,14 @@ app = KickApp()
 
 async def say(message: str) -> None:
     """
-    Try to send a chat message; if Kick returns 401 (or any APIError),
+    Try to send a chat message; if no user token or Kick returns 401,
     log the reply locally instead so event reception stays visible.
     """
     try:
         await app.say(message)
         print(f"[BOT->CHAT] {message}")
+    except TokenExpiredError:
+        print(f"[BOT] {message}    (not sent: run 'kickforge auth' to authorize chat)")
     except APIError as exc:
         print(f"[BOT] {message}    (not sent: {exc.status_code} {exc.detail[:80]})")
     except Exception as exc:

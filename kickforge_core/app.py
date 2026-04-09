@@ -35,7 +35,7 @@ from kickforge_core.events import EventBus, EventHandler
 from kickforge_core.webhook import WebhookServer
 from kickforge_core.websocket import PusherClient
 from kickforge_core.api import KickAPI
-from kickforge_core.exceptions import KickForgeError
+from kickforge_core.exceptions import APIError, KickForgeError, TokenExpiredError
 
 logger = logging.getLogger("kickforge.app")
 
@@ -136,15 +136,38 @@ class KickApp:
     # -----------------------------------------------------------------------
 
     async def say(self, message: str, reply_to: Optional[str] = None) -> None:
-        """Send a chat message to the connected channel."""
+        """
+        Send a chat message to the connected channel.
+
+        Requires a user access token with ``chat:write`` scope.
+        Run ``kickforge auth`` once to obtain one.
+        """
         if not self._broadcaster_id:
-            logger.error("Cannot send message — no broadcaster_id set. Call app.connect(channel) first.")
+            logger.error(
+                "Cannot send message — no broadcaster_id set. "
+                "Call app.connect(channel) first."
+            )
             return
-        await self.api.send_message(
-            broadcaster_id=self._broadcaster_id,
-            content=message,
-            reply_to=reply_to,
-        )
+        try:
+            await self.api.send_message(
+                broadcaster_id=self._broadcaster_id,
+                content=message,
+                reply_to=reply_to,
+            )
+        except TokenExpiredError as exc:
+            logger.error(
+                "Cannot send chat message: %s\n"
+                "Run 'kickforge auth' to authorize chat sending.",
+                exc,
+            )
+            raise
+        except APIError as exc:
+            if exc.status_code == 401:
+                logger.error(
+                    "Chat send rejected (401). Your user token may be missing "
+                    "or lacks chat:write scope. Run 'kickforge auth' to re-authorize."
+                )
+            raise
 
     async def connect(self, channel_slug: str) -> None:
         """

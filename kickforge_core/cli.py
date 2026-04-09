@@ -25,6 +25,18 @@ def main() -> None:
     # kickforge check
     sub.add_parser("check", help="Verify Kick API credentials")
 
+    # kickforge auth
+    auth_cmd = sub.add_parser(
+        "auth",
+        help="OAuth user-token flow (one-time, for chat sending)",
+    )
+    auth_cmd.add_argument(
+        "--port", type=int, default=8421, help="Local OAuth callback port (default 8421)"
+    )
+    auth_cmd.add_argument(
+        "--no-browser", action="store_true", help="Don't auto-open the browser"
+    )
+
     args = parser.parse_args()
 
     if args.command == "init":
@@ -33,6 +45,8 @@ def main() -> None:
         _check_credentials()
     elif args.command == "run":
         _run_app(args.file, args.port)
+    elif args.command == "auth":
+        _auth_flow(port=args.port, open_browser=not args.no_browser)
     else:
         parser.print_help()
 
@@ -213,6 +227,72 @@ def _run_app(file: str, port: int) -> None:
     import subprocess
 
     subprocess.run([sys.executable, file], check=False)
+
+
+def _auth_flow(port: int = 8421, open_browser: bool = True) -> None:
+    """
+    Run the OAuth authorization-code flow to obtain a user access token.
+
+    Reads KICK_CLIENT_ID and KICK_CLIENT_SECRET from .env, spins up a
+    local callback server on ``port``, opens the user's browser, and
+    saves the resulting token to ~/.kickforge/tokens.json.
+    """
+    import asyncio
+    import os
+
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv()
+    except ImportError:
+        pass
+
+    client_id = os.getenv("KICK_CLIENT_ID", "")
+    client_secret = os.getenv("KICK_CLIENT_SECRET", "")
+
+    if not client_id or not client_secret:
+        print("Error: KICK_CLIENT_ID and KICK_CLIENT_SECRET must be set in your .env file.")
+        print("Get them at https://kick.com/settings/developer")
+        sys.exit(1)
+
+    from kickforge_core.auth import KickAuth, TOKEN_FILE
+    from kickforge_core.oauth_server import OAuthServer
+
+    auth = KickAuth(client_id=client_id, client_secret=client_secret)
+    server = OAuthServer(auth=auth, port=port)
+
+    print("=" * 60)
+    print("KickForge OAuth Flow")
+    print("=" * 60)
+    print(f"Callback URL: {server.redirect_uri}")
+    print()
+    print("IMPORTANT: This callback URL must be registered in your")
+    print("Kick Developer App at https://kick.com/settings/developer")
+    print("under 'Redirect URIs'.")
+    print("=" * 60)
+
+    async def run() -> None:
+        try:
+            success = await server.run(open_browser=open_browser)
+        finally:
+            await auth.close()
+
+        if success:
+            print()
+            print(f"Token saved to {TOKEN_FILE}")
+            print("Your bot can now send chat messages.")
+            print()
+            print("Next: python examples/minimal_bot.py")
+        else:
+            print()
+            print(f"OAuth failed: {server.error}")
+            sys.exit(1)
+
+    try:
+        asyncio.run(run())
+    except KeyboardInterrupt:
+        print("\nAborted by user.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
