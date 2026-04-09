@@ -12,11 +12,20 @@ Setup:
     3. Set your channel slug below (or pass via CLI)
     4. python examples/minimal_bot.py
 
+Note on sending messages:
+    Kick's chat send API requires a USER access token with chat:write
+    scope (app/client-credential tokens always return 401, even for
+    type="bot" messages).  Until OAuth user-token flow is wired up,
+    this example catches 401s and logs [BOT] <reply> locally so you
+    can verify that event reception is working even if outbound chat
+    is not.
+
 Requirements:
     KICK_CLIENT_ID, KICK_CLIENT_SECRET in .env
     A channel slug (your Kick username)
 """
 
+import logging
 import os
 import sys
 
@@ -25,11 +34,28 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from kickforge_core import KickApp
+from kickforge_core.exceptions import APIError
+
+logger = logging.getLogger("minimal_bot")
 
 CHANNEL = os.getenv("KICK_CHANNEL", "yargitayy")  # Override with KICK_CHANNEL=yourname
 
 # Default mode is "websocket" — no ngrok needed
 app = KickApp()
+
+
+async def say(message: str) -> None:
+    """
+    Try to send a chat message; if Kick returns 401 (or any APIError),
+    log the reply locally instead so event reception stays visible.
+    """
+    try:
+        await app.say(message)
+        print(f"[BOT->CHAT] {message}")
+    except APIError as exc:
+        print(f"[BOT] {message}    (not sent: {exc.status_code} {exc.detail[:80]})")
+    except Exception as exc:
+        print(f"[BOT] {message}    (not sent: {exc})")
 
 
 @app.on("chat.message.sent")
@@ -39,15 +65,15 @@ async def handle_chat(event):
     print(f"[chat] {user}: {event.message}")
 
     if msg == "!ping":
-        await app.say("pong!")
+        await say("pong!")
 
     elif msg == "!dice":
         import random
         roll = random.randint(1, 6)
-        await app.say(f"{user} rolled a {roll}!")
+        await say(f"{user} rolled a {roll}!")
 
     elif msg == "!hug":
-        await app.say(f"{user} sends a virtual hug to the chat!")
+        await say(f"{user} sends a virtual hug to the chat!")
 
 
 @app.on("kicks.gifted")
@@ -57,17 +83,17 @@ async def handle_gift(event):
     print(f"[gift] {user} sent {amount} kicks")
 
     if amount >= 100:
-        await app.say(f"MASSIVE GIFT from {user} — {amount} kicks! Legend!")
+        await say(f"MASSIVE GIFT from {user} — {amount} kicks! Legend!")
     elif amount >= 10:
-        await app.say(f"{user} sent {amount} kicks! Thank you!")
+        await say(f"{user} sent {amount} kicks! Thank you!")
     else:
-        await app.say(f"Thanks for the {amount} kicks, {user}!")
+        await say(f"Thanks for the {amount} kicks, {user}!")
 
 
 @app.on("channel.followed")
 async def handle_follow(event):
     print(f"[follow] {event.follower_username}")
-    await app.say(f"Welcome aboard, {event.follower_username}!")
+    await say(f"Welcome aboard, {event.follower_username}!")
 
 
 if __name__ == "__main__":

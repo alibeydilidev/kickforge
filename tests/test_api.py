@@ -23,6 +23,11 @@ def _make_auth_with_token() -> KickAuth:
         access_token="mock-token",
         expires_at=time.time() + 3600,
     )
+    auth._tokens["user"] = TokenPair(
+        access_token="mock-user-token",
+        refresh_token="mock-refresh",
+        expires_at=time.time() + 3600,
+    )
     return auth
 
 

@@ -80,10 +80,27 @@ class KickAPI:
             raise RateLimitError(retry_after=retry_after, endpoint=endpoint)
 
         if response.status_code >= 400:
+            # Log full response body to aid debugging
+            body_text = response.text or "<empty>"
+            logger.warning(
+                "Kick API %d on %s %s (token=%s)\n  Response body: %s",
+                response.status_code,
+                method,
+                endpoint,
+                token_type,
+                body_text[:500],
+            )
             try:
-                detail = response.json().get("message", response.text)
+                body_json = response.json()
+                detail = body_json.get("message") or body_json.get("error") or body_text
             except Exception:
-                detail = response.text
+                detail = body_text
+            # Extra hint for 401 on chat endpoint
+            if response.status_code == 401 and "/chat" in endpoint:
+                detail = (
+                    f"{detail} — Kick requires a USER access token with chat:write scope. "
+                    "App tokens (client credentials) cannot send chat messages."
+                )
             raise APIError(response.status_code, str(detail), endpoint)
 
         if response.status_code == 204:
@@ -99,28 +116,37 @@ class KickAPI:
         self,
         broadcaster_id: int,
         content: str,
-        poster_type: str = "bot",
+        poster_type: str = "user",
         reply_to: Optional[str] = None,
     ) -> dict[str, Any]:
         """
         Send a chat message to a channel.
 
+        NOTE: Kick's chat API requires a USER access token with
+        ``chat:write`` scope for ALL send operations, even when
+        ``poster_type="bot"``.  App tokens (client credentials)
+        always return 401.
+
         Args:
-            broadcaster_id: The broadcaster's user ID.
+            broadcaster_id: The broadcaster's user ID. When ``poster_type="bot"``
+                this is ignored by Kick (the bot posts to its own channel).
             content: Message text (max 500 chars).
-            poster_type: "bot" or "user".
+            poster_type: "user" (default) or "bot".
             reply_to: Optional message ID to reply to.
         """
         payload: dict[str, Any] = {
-            "broadcaster_user_id": broadcaster_id,
             "content": content[:500],
             "type": poster_type,
         }
+        # Kick ignores broadcaster_user_id when type=bot but accepts it
+        if poster_type == "user":
+            payload["broadcaster_user_id"] = broadcaster_id
         if reply_to:
-            payload["reply_to"] = {"message_id": reply_to}
+            payload["reply_to_message_id"] = reply_to
 
-        token_type = "app" if poster_type == "bot" else "user"
-        result = await self._request("POST", "/public/v1/chat", token_type=token_type, json=payload)
+        result = await self._request(
+            "POST", "/public/v1/chat", token_type="user", json=payload
+        )
         logger.debug("Sent message to broadcaster %d: %s", broadcaster_id, content[:50])
         return result
 
