@@ -13,6 +13,7 @@ Wraps the public Kick API endpoints for:
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any, Optional
 
 import httpx
@@ -131,45 +132,105 @@ class KickAPI:
         """Get channel information by slug (username)."""
         return await self._request("GET", "/public/v1/channels", params={"slug": slug})
 
-    async def get_chatroom_id(self, slug: str) -> Optional[int]:
+    async def get_chatroom_id(
+        self,
+        slug: str,
+        channel_data: Optional[dict[str, Any]] = None,
+    ) -> Optional[int]:
         """
         Resolve a channel slug to its Pusher chatroom_id.
 
-        Tries the public API first; falls back to the unauthenticated
-        ``kick.com/api/v2/channels/{slug}`` endpoint that has always
-        included chatroom data.
+        Tries, in order:
+        1. The official ``/public/v1/channels`` response (usually doesn't
+           include chatroom_id, but some endpoints do).
+        2. The unauthenticated ``kick.com/api/v2/channels/{slug}``
+           endpoint with a browser User-Agent.
+        3. Scraping the ``kick.com/{slug}`` HTML page — the chatroom ID
+           is embedded in a Next.js data block.
 
-        Returns None if the chatroom couldn't be resolved.
+        Args:
+            slug: Channel slug.
+            channel_data: Pre-fetched response from ``get_channel()`` to
+                avoid a duplicate API call.
+
+        Returns None if every method fails.
         """
-        # First try the official public API
-        try:
-            data = await self.get_channel(slug)
-            entries = data.get("data", [data])
+        # 1) Try the pre-fetched public API response
+        if channel_data is None:
+            try:
+                channel_data = await self.get_channel(slug)
+            except Exception:
+                logger.debug("Public channel lookup failed")
+                channel_data = None
+
+        if isinstance(channel_data, dict):
+            entries = channel_data.get("data", [channel_data])
             entry = entries[0] if isinstance(entries, list) and entries else entries
             if isinstance(entry, dict):
                 chatroom = entry.get("chatroom") or {}
                 if isinstance(chatroom, dict) and chatroom.get("id"):
                     return int(chatroom["id"])
-                # Some responses flatten it
                 if entry.get("chatroom_id"):
                     return int(entry["chatroom_id"])
-        except Exception:
-            logger.debug("Public channel lookup didn't return chatroom_id, trying fallback")
 
-        # Fallback: unauthenticated legacy endpoint
+        # Browser-ish headers to get past Cloudflare bot detection
+        browser_headers = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
+
+        # 2) Legacy unauthenticated JSON endpoint
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(
+                timeout=10.0, follow_redirects=True
+            ) as client:
                 response = await client.get(
                     f"https://kick.com/api/v2/channels/{slug}",
-                    headers={"User-Agent": "KickForge/0.1.0"},
+                    headers=browser_headers,
                 )
                 if response.status_code == 200:
                     data = response.json()
                     chatroom = data.get("chatroom") or {}
                     if chatroom.get("id"):
+                        logger.info("Resolved chatroom_id from kick.com/api/v2")
                         return int(chatroom["id"])
+                else:
+                    logger.debug(
+                        "kick.com/api/v2 returned %d (likely Cloudflare)",
+                        response.status_code,
+                    )
         except Exception:
-            logger.exception("Fallback chatroom lookup failed")
+            logger.debug("Legacy API chatroom lookup failed", exc_info=True)
+
+        # 3) Scrape the channel HTML page
+        try:
+            async with httpx.AsyncClient(
+                timeout=10.0, follow_redirects=True
+            ) as client:
+                html_headers = {
+                    **browser_headers,
+                    "Accept": "text/html,application/xhtml+xml",
+                }
+                response = await client.get(
+                    f"https://kick.com/{slug}",
+                    headers=html_headers,
+                )
+                if response.status_code == 200:
+                    chatroom_id = _extract_chatroom_id_from_html(response.text)
+                    if chatroom_id:
+                        logger.info("Resolved chatroom_id from HTML page scrape")
+                        return chatroom_id
+                else:
+                    logger.debug(
+                        "Channel HTML page returned %d", response.status_code
+                    )
+        except Exception:
+            logger.debug("HTML scrape chatroom lookup failed", exc_info=True)
 
         return None
 
@@ -290,3 +351,29 @@ class KickAPI:
         if self._http and not self._http.is_closed:
             await self._http.aclose()
         await self.auth.close()
+
+
+# ---------------------------------------------------------------------------
+# HTML scraping helper
+# ---------------------------------------------------------------------------
+
+# Kick embeds channel data as JSON in the page HTML. The chatroom_id
+# shows up as `"chatroom":{"id":12345` or `"chatroom_id":12345`.
+_CHATROOM_PATTERNS = [
+    re.compile(r'"chatroom"\s*:\s*\{\s*"id"\s*:\s*(\d+)'),
+    re.compile(r'"chatroom_id"\s*:\s*(\d+)'),
+    re.compile(r'\\"chatroom\\"\s*:\s*\{\s*\\"id\\"\s*:\s*(\d+)'),
+    re.compile(r'\\"chatroom_id\\"\s*:\s*(\d+)'),
+]
+
+
+def _extract_chatroom_id_from_html(html: str) -> Optional[int]:
+    """Find the first chatroom id embedded in a Kick channel HTML page."""
+    for pattern in _CHATROOM_PATTERNS:
+        match = pattern.search(html)
+        if match:
+            try:
+                return int(match.group(1))
+            except ValueError:
+                continue
+    return None

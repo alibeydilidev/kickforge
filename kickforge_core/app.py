@@ -164,8 +164,11 @@ class KickApp:
 
         self._broadcaster_id = entry.get("broadcaster_user_id")
 
-        # Resolve chatroom_id too (needed for websocket mode)
-        self._chatroom_id = await self.api.get_chatroom_id(channel_slug)
+        # Pass the pre-fetched channel data to avoid a duplicate API call,
+        # then fall back to legacy endpoint / HTML scrape inside get_chatroom_id.
+        self._chatroom_id = await self.api.get_chatroom_id(
+            channel_slug, channel_data=channel_data
+        )
 
         if self._broadcaster_id:
             logger.info(
@@ -262,11 +265,19 @@ class KickApp:
                             )
 
                 if not self._chatroom_id:
+                    slug = channel or "YOUR_SLUG"
                     raise KickForgeError(
-                        "Could not resolve chatroom_id. Either:\n"
-                        "  1. Pass a valid 'channel' slug to app.run(channel=...)\n"
-                        "  2. Set KICK_CHATROOM_ID in your .env file\n"
-                        "Find your chatroom_id at: https://kick.com/api/v2/channels/YOUR_SLUG"
+                        "Could not resolve chatroom_id automatically.\n"
+                        "\n"
+                        "Kick's public API doesn't expose chatroom_id, and the\n"
+                        "fallback endpoints are blocked by Cloudflare from Python.\n"
+                        "\n"
+                        "Quick fix — find it once in your browser:\n"
+                        f"  1. Open this URL in any browser: https://kick.com/api/v2/channels/{slug}\n"
+                        "  2. Find the \"chatroom\" object and copy its \"id\" value\n"
+                        "  3. Add it to your .env file:\n"
+                        "       KICK_CHATROOM_ID=12345\n"
+                        "  4. Re-run the bot.\n"
                     )
                 self.pusher = PusherClient(
                     bus=self.bus,

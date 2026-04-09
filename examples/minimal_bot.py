@@ -26,7 +26,7 @@ load_dotenv()
 
 from kickforge_core import KickApp
 
-CHANNEL = os.getenv("KICK_CHANNEL", "yargitay")  # Override with KICK_CHANNEL=yourname
+CHANNEL = os.getenv("KICK_CHANNEL", "yargitayy")  # Override with KICK_CHANNEL=yourname
 
 # Default mode is "websocket" — no ngrok needed
 app = KickApp()
