@@ -55,25 +55,83 @@ class WebhookServer:
             docs_url=None,
             redoc_url=None,
         )
+        self._setup_middleware()
         self._setup_routes()
+
+    def _setup_middleware(self) -> None:
+        """Log every incoming request before it hits a route."""
+
+        @self.app.middleware("http")
+        async def log_all_requests(request: Request, call_next):
+            client = request.client.host if request.client else "unknown"
+            logger.info(
+                ">> %s %s from %s",
+                request.method,
+                request.url.path,
+                client,
+            )
+            try:
+                response = await call_next(request)
+            except Exception:
+                logger.exception(
+                    "Unhandled exception in %s %s",
+                    request.method,
+                    request.url.path,
+                )
+                raise
+            logger.info(
+                "<< %d %s %s",
+                response.status_code,
+                request.method,
+                request.url.path,
+            )
+            return response
 
     def _setup_routes(self) -> None:
         @self.app.post(self.path)
         async def handle_webhook(request: Request) -> Response:
             body = await request.body()
 
+            # Log every webhook arrival with full detail
+            kick_headers = {
+                name: value
+                for name, value in request.headers.items()
+                if name.lower().startswith("kick-")
+            }
+            logger.info(
+                "Webhook received: %d bytes, kick_headers=%s",
+                len(body),
+                kick_headers or "<none>",
+            )
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("Raw body: %s", body[:1000])
+
             if self.verify_signatures:
                 signature = request.headers.get("Kick-Event-Signature", "")
                 message_id = request.headers.get("Kick-Event-Message-Id", "")
                 timestamp = request.headers.get("Kick-Event-Message-Timestamp", "")
 
-                if not await self._verify_signature(body, signature, message_id, timestamp):
-                    logger.warning("Invalid webhook signature — rejecting request")
+                if not signature:
+                    logger.warning(
+                        "Rejecting webhook: no Kick-Event-Signature header "
+                        "(hint: set verify_signatures=False to accept unsigned requests)"
+                    )
+                    raise HTTPException(status_code=403, detail="Missing signature")
+
+                verified = await self._verify_signature(body, signature, message_id, timestamp)
+                if not verified:
+                    logger.warning(
+                        "Rejecting webhook: signature verification failed "
+                        "(message_id=%s timestamp=%s)",
+                        message_id,
+                        timestamp,
+                    )
                     raise HTTPException(status_code=403, detail="Invalid signature")
 
             try:
-                payload = json.loads(body)
-            except json.JSONDecodeError:
+                payload = json.loads(body) if body else {}
+            except json.JSONDecodeError as exc:
+                logger.warning("Rejecting webhook: invalid JSON: %s", exc)
                 raise HTTPException(status_code=400, detail="Invalid JSON")
 
             event_type = request.headers.get(
@@ -83,13 +141,18 @@ class WebhookServer:
             subscription_id = request.headers.get("Kick-Event-Subscription-Id", "")
 
             logger.info(
-                "Received webhook: type=%s subscription=%s",
+                "Dispatching webhook event: type=%s subscription=%s",
                 event_type,
                 subscription_id,
             )
 
-            event = parse_event(event_type, payload)
-            await self.bus.emit(event_type, event)
+            try:
+                event = parse_event(event_type, payload)
+                await self.bus.emit(event_type, event)
+            except Exception:
+                logger.exception("Error dispatching event %s", event_type)
+                # Still return 200 so Kick doesn't retry for an app-side bug
+                return Response(status_code=200)
 
             return Response(status_code=200)
 
@@ -111,25 +174,37 @@ class WebhookServer:
         Signature header is base64-encoded Ed25519 signature.
         """
         if not signature:
+            logger.debug("Signature verification: empty signature header")
             return False
 
         try:
             public_key = await self._get_public_key()
             if not public_key:
-                logger.warning("No public key available — skipping verification")
+                logger.warning(
+                    "Signature verification skipped: no public key available "
+                    "(failing open in dev mode)"
+                )
                 return True
 
             message = f"{message_id}{timestamp}".encode() + body
-            signature_bytes = base64.b64decode(signature)
+            try:
+                signature_bytes = base64.b64decode(signature)
+            except Exception as exc:
+                logger.warning("Signature is not valid base64: %s", exc)
+                return False
 
             public_key.verify(signature_bytes, message)
+            logger.debug("Signature verified successfully")
             return True
 
         except InvalidSignature:
-            logger.warning("Ed25519 signature verification failed")
+            logger.warning(
+                "Ed25519 signature verification failed "
+                "(signed message = message_id + timestamp + body)"
+            )
             return False
         except Exception:
-            logger.exception("Signature verification error")
+            logger.exception("Unexpected error during signature verification")
             return False
 
     async def _get_public_key(self) -> Optional[Ed25519PublicKey]:
@@ -144,24 +219,34 @@ class WebhookServer:
                     response = await client.get(KICK_PUBLIC_KEY_URL)
                     response.raise_for_status()
                     data = response.json()
-                    pem = data.get("public_key", "")
+                    # Kick returns {"data": {"public_key": "..."}} or {"public_key": "..."}
+                    if isinstance(data, dict):
+                        inner = data.get("data", data)
+                        if isinstance(inner, dict):
+                            pem = inner.get("public_key", "")
                     if not pem:
-                        logger.error("Empty public key from Kick API")
+                        logger.error(
+                            "Empty public key from %s (response: %s)",
+                            KICK_PUBLIC_KEY_URL,
+                            str(data)[:200],
+                        )
                         return None
                     logger.info("Fetched Kick Ed25519 public key")
             except httpx.HTTPError:
-                logger.exception("Failed to fetch Kick public key")
+                logger.exception("Failed to fetch Kick public key from %s", KICK_PUBLIC_KEY_URL)
                 return None
 
         try:
             key = load_pem_public_key(pem.encode())
             if not isinstance(key, Ed25519PublicKey):
-                raise WebhookVerificationError("Kick public key is not Ed25519")
+                raise WebhookVerificationError(
+                    f"Kick public key is not Ed25519 (got {type(key).__name__})"
+                )
             self._public_key = key
             self._public_key_pem = pem
             return self._public_key
         except Exception:
-            logger.exception("Failed to parse Ed25519 public key")
+            logger.exception("Failed to parse Ed25519 public key (pem length=%d)", len(pem))
             return None
 
     def set_public_key(self, pem: str) -> None:

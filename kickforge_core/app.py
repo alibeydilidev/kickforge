@@ -201,8 +201,8 @@ class KickApp:
             self.webhook.app,
             host=host,
             port=port,
-            log_level="warning",
-            access_log=False,
+            log_level="info",
+            access_log=True,
         )
         server = uvicorn.Server(config)
 
