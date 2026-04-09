@@ -53,11 +53,12 @@ class KickBot(KickApp):
 
     def __init__(
         self,
-        client_id: str,
-        client_secret: str,
+        client_id: Optional[str] = None,
+        client_secret: Optional[str] = None,
         prefix: str = "!",
         db_path: str = "loyalty.db",
         moderation: Optional[ModerationConfig] = None,
+        mode: str = "websocket",
         webhook_path: str = "/webhook",
         verify_signatures: bool = True,
         log_level: str = "INFO",
@@ -65,6 +66,7 @@ class KickBot(KickApp):
         super().__init__(
             client_id=client_id,
             client_secret=client_secret,
+            mode=mode,
             webhook_path=webhook_path,
             verify_signatures=verify_signatures,
             log_level=log_level,

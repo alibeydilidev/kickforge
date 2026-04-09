@@ -18,6 +18,7 @@ def _make_bot(db_path: str | None = None) -> KickBot:
     bot = KickBot(
         client_id="test",
         client_secret="secret",
+        mode="webhook",
         verify_signatures=False,
         log_level="WARNING",
         db_path=db_path or ":memory:",

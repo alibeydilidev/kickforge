@@ -34,6 +34,7 @@ from kickforge_core.events import (
 )
 from kickforge_core.api import KickAPI
 from kickforge_core.webhook import WebhookServer
+from kickforge_core.websocket import PusherClient, translate_pusher_event
 from kickforge_core.exceptions import (
     KickForgeError,
     AuthenticationError,
@@ -60,6 +61,8 @@ __all__ = [
     "parse_event",
     "KickAPI",
     "WebhookServer",
+    "PusherClient",
+    "translate_pusher_event",
     "KickForgeError",
     "AuthenticationError",
     "TokenExpiredError",

@@ -131,6 +131,48 @@ class KickAPI:
         """Get channel information by slug (username)."""
         return await self._request("GET", "/public/v1/channels", params={"slug": slug})
 
+    async def get_chatroom_id(self, slug: str) -> Optional[int]:
+        """
+        Resolve a channel slug to its Pusher chatroom_id.
+
+        Tries the public API first; falls back to the unauthenticated
+        ``kick.com/api/v2/channels/{slug}`` endpoint that has always
+        included chatroom data.
+
+        Returns None if the chatroom couldn't be resolved.
+        """
+        # First try the official public API
+        try:
+            data = await self.get_channel(slug)
+            entries = data.get("data", [data])
+            entry = entries[0] if isinstance(entries, list) and entries else entries
+            if isinstance(entry, dict):
+                chatroom = entry.get("chatroom") or {}
+                if isinstance(chatroom, dict) and chatroom.get("id"):
+                    return int(chatroom["id"])
+                # Some responses flatten it
+                if entry.get("chatroom_id"):
+                    return int(entry["chatroom_id"])
+        except Exception:
+            logger.debug("Public channel lookup didn't return chatroom_id, trying fallback")
+
+        # Fallback: unauthenticated legacy endpoint
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    f"https://kick.com/api/v2/channels/{slug}",
+                    headers={"User-Agent": "KickForge/0.1.0"},
+                )
+                if response.status_code == 200:
+                    data = response.json()
+                    chatroom = data.get("chatroom") or {}
+                    if chatroom.get("id"):
+                        return int(chatroom["id"])
+        except Exception:
+            logger.exception("Fallback chatroom lookup failed")
+
+        return None
+
     async def get_livestream(self, broadcaster_id: int) -> dict[str, Any]:
         """Get current livestream info for a broadcaster."""
         return await self._request(

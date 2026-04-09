@@ -16,6 +16,7 @@ class TestKickApp:
         a = KickApp(
             client_id="test-id",
             client_secret="test-secret",
+            mode="webhook",
             verify_signatures=False,
             log_level="WARNING",
         )
